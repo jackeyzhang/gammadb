@@ -1,0 +1,379 @@
+/*
+ * Copyright (c) 2024 Gamma Data, Inc. <jackey@gammadb.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "postgres.h"
+
+#include "port/atomics.h"
+#include "storage/lwlock.h"
+
+#include "storage/gamma_toc.h"
+
+#define TOC_ENTRY_INVALID		0x1
+
+struct gamma_toc
+{
+	uint64		toc_magic;		/* Magic number identifying this TOC */
+	LWLock		toc_lwlock;
+	Size		toc_total_bytes;	/* Bytes managed by this TOC */
+	Size		toc_allocated_bytes;	/* Bytes allocated of those managed */
+	uint32		toc_nentry;		/* Number of entries in TOC */
+	gamma_toc_entry toc_entry[FLEXIBLE_ARRAY_MEMBER];
+};
+
+/*
+ * Initialize a region of shared memory with a table of contents.
+ */
+gamma_toc *
+gamma_toc_create(uint64 magic, void *address, Size nbytes)
+{
+	gamma_toc    *toc = (gamma_toc *) address;
+
+	Assert(nbytes > offsetof(gamma_toc, toc_entry));
+	toc->toc_magic = magic;
+	LWLockInitialize(&toc->toc_lwlock, LWLockNewTrancheId());
+	LWLockRegisterTranche(toc->toc_lwlock.tranche, "gammadb_dsm_toc");
+
+	/*
+	 * The alignment code in gamma_toc_allocate() assumes that the starting
+	 * value is buffer-aligned.
+	 */
+	toc->toc_total_bytes = BUFFERALIGN_DOWN(nbytes);
+	toc->toc_allocated_bytes = 0;
+	toc->toc_nentry = 0;
+
+	return toc;
+}
+
+gamma_toc *
+gamma_toc_attach(uint64 magic, void *address)
+{
+	gamma_toc    *toc = (gamma_toc *) address;
+
+	if (toc->toc_magic != magic)
+		return NULL;
+
+	Assert(toc->toc_total_bytes >= toc->toc_allocated_bytes);
+	Assert(toc->toc_total_bytes > offsetof(gamma_toc, toc_entry));
+
+	return toc;
+}
+
+static bool
+gamma_toc_enough(gamma_toc *toc, Size nbytes)
+{
+	volatile gamma_toc *vtoc = toc;
+	Size total_bytes;
+	Size allocated_bytes;
+	Size nentry;
+	Size remain_bytes;
+
+	/* compute the free space */
+	total_bytes = vtoc->toc_total_bytes;
+	allocated_bytes = vtoc->toc_allocated_bytes;
+	nentry = vtoc->toc_nentry;
+	remain_bytes = offsetof(gamma_toc, toc_entry) +
+		(nentry * sizeof(gamma_toc_entry)) +
+		allocated_bytes;
+
+	/* Check for memory exhaustion and overflow. */
+	if (remain_bytes + nbytes > total_bytes ||
+			remain_bytes + nbytes < remain_bytes)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+/* 
+ * Check if it is possible to take an entry that is already
+ * invalid (all tuples have been removed)
+ */
+static gamma_toc_entry *
+gamma_toc_invalid(gamma_toc *toc, Size nbytes)
+{
+	uint32 nentry;
+	uint32 i;
+
+	nentry = toc->toc_nentry;
+
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].flags & TOC_ENTRY_INVALID &&
+			toc->toc_entry[i].nbytes > nbytes)
+			return &(toc->toc_entry[i]);
+	}
+
+	return NULL;
+}
+
+static bool
+gamma_toc_merge(gamma_toc *toc, Size nbytes)
+{
+	uint32 nentry;
+	uint32 i,j;
+
+	nentry = toc->toc_nentry;
+
+	for (i = nentry; i > 0; i--)
+	{
+		gamma_toc_entry *tail_entry = &(toc->toc_entry[i - 1]);
+		bool move = false;
+
+		/* if tail entry is invalid, remove it directly */
+		if (tail_entry->flags & TOC_ENTRY_INVALID)
+		{
+			toc->toc_allocated_bytes -= tail_entry->nbytes;
+			toc->toc_nentry--;
+
+			/* check if memory is enough */
+			if (gamma_toc_enough(toc, nbytes))
+				return true;
+
+			continue;
+		}
+
+		/*
+		 * Try to move the trailing entry forward
+		 * GAMMA NOTE: use toc->toc_nentry, don't use nentry directly
+		*/
+		for (j = 0; j < toc->toc_nentry; j++)
+		{
+			gamma_toc_entry *target_entry = &(toc->toc_entry[j]);
+			if (target_entry->flags & TOC_ENTRY_INVALID &&
+				target_entry->nbytes >= tail_entry->nbytes)
+			{
+				char *target_addr;
+				char *tail_addr;
+
+				toc->toc_allocated_bytes -= tail_entry->nbytes;
+				toc->toc_nentry--;
+
+				tail_addr = gamma_toc_addr((gamma_toc *)toc, tail_entry);
+				target_addr = gamma_toc_addr((gamma_toc *)toc, target_entry);
+
+				memcpy(target_addr, tail_addr,
+						tail_entry->values_nbytes + tail_entry->isnull_nbytes);
+
+				target_entry->relid = tail_entry->relid;
+				target_entry->rgid = tail_entry->rgid;
+				target_entry->attno = tail_entry->attno;
+				target_entry->dim = tail_entry->dim;
+				target_entry->values_nbytes = tail_entry->values_nbytes;
+				target_entry->isnull_nbytes = tail_entry->isnull_nbytes;
+
+				move = true;
+
+				/* check if memory is enough */
+				if (gamma_toc_enough(toc, nbytes))
+					return true;
+			}
+		}
+
+		if (!move)
+			break;
+	}
+
+	return false;
+}
+
+static bool
+gamma_toc_lru(gamma_toc *toc, Size nbytes)
+{
+	//TODO:
+	return false;
+}
+
+gamma_toc_entry *
+gamma_toc_alloc(gamma_toc *toc, Size nbytes)
+{
+	volatile gamma_toc *vtoc = toc;
+	gamma_toc_entry *result;
+	Size total_bytes;
+	Size allocated_bytes;
+	Size nentry;
+	Size remain_bytes;
+	Size offset;
+
+	do
+	{
+		/* compute the free space */
+		total_bytes = vtoc->toc_total_bytes;
+		allocated_bytes = vtoc->toc_allocated_bytes;
+		nentry = vtoc->toc_nentry;
+		remain_bytes = offsetof(gamma_toc, toc_entry) +
+							(nentry * sizeof(gamma_toc_entry)) +
+							allocated_bytes;
+
+		/* Check for memory exhaustion and overflow. */
+		if (remain_bytes + nbytes > total_bytes ||
+			remain_bytes + nbytes < remain_bytes)
+		{
+			result = gamma_toc_invalid((gamma_toc *)vtoc, nbytes);
+			if (result == NULL)
+				break;
+				
+			if (gamma_toc_merge((gamma_toc *)vtoc, nbytes))
+				continue;
+
+			if (gamma_toc_lru((gamma_toc *)vtoc, nbytes))
+				continue;
+
+			elog(ERROR, "Gamma Share Memory is not enough.");
+		}
+
+		offset = total_bytes - allocated_bytes - nbytes;
+
+		vtoc->toc_allocated_bytes += nbytes;
+
+		nentry = vtoc->toc_nentry++;
+		pg_write_barrier();
+		result = (gamma_toc_entry *) &(vtoc->toc_entry[nentry]);
+		result->values_offset = offset;
+		result->nbytes = nbytes;
+
+		return result;
+
+	} while(1);
+
+	return NULL;
+}
+
+char *
+gamma_toc_addr(gamma_toc *toc, gamma_toc_entry *entry)
+{
+	return (((char *)toc) + entry->values_offset);
+}
+
+bool
+gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno, uint32 *dim,
+				char **data, Size *values_nbytes, bool **nulls, Size *isnull_nbytes)
+{
+	uint32		nentry;
+	uint32		i;
+
+	Size align_v_nbytes;
+
+	nentry = toc->toc_nentry;
+	pg_read_barrier();
+
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].relid == relid &&
+			toc->toc_entry[i].rgid == rgid &&
+			toc->toc_entry[i].attno == attno)
+		{
+			/* the cv in toc is invalid(eg. it is truncated) */
+			if (toc->toc_entry[i].flags & TOC_ENTRY_INVALID)
+				continue;
+
+			align_v_nbytes = BUFFERALIGN(toc->toc_entry[i].values_nbytes);
+
+			*data = ((char *)toc) + toc->toc_entry[i].values_offset;
+			*values_nbytes = toc->toc_entry[i].values_nbytes;
+
+			if (toc->toc_entry[i].isnull_nbytes != 0)
+			{
+				*nulls = (bool *)(((char *)data) + align_v_nbytes);
+				*isnull_nbytes = toc->toc_entry[i].isnull_nbytes;
+			}
+			else
+			{
+				*nulls = NULL;
+				*isnull_nbytes = 0;
+			}
+
+			*dim = toc->toc_entry[i].dim;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void
+gamma_toc_invalid_rel(gamma_toc *toc, Oid relid)
+{
+	uint32		nentry;
+	uint32		i;
+
+	nentry = toc->toc_nentry;
+	pg_read_barrier();
+
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].relid == relid)
+		{
+			toc->toc_entry[i].flags = toc->toc_entry[i].flags | TOC_ENTRY_INVALID;
+		}
+	}
+}
+
+void
+gamma_toc_invalid_rg(gamma_toc *toc, Oid relid, uint32 rgid)
+{
+	uint32		nentry;
+	uint32		i;
+
+	nentry = toc->toc_nentry;
+	pg_read_barrier();
+
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].relid == relid &&
+			toc->toc_entry[i].rgid == rgid)
+		{
+			toc->toc_entry[i].flags = toc->toc_entry[i].flags | TOC_ENTRY_INVALID;
+		}
+	}
+}
+
+void
+gamma_toc_invalid_cv(gamma_toc *toc, Oid relid, uint32 rgid, int16 attno)
+{
+	uint32		nentry;
+	uint32		i;
+
+	nentry = toc->toc_nentry;
+	pg_read_barrier();
+
+	for (i = 0; i < nentry; ++i)
+	{
+		if (toc->toc_entry[i].relid == relid &&
+			toc->toc_entry[i].rgid == rgid &&
+			toc->toc_entry[i].attno == attno)
+		{
+			toc->toc_entry[i].flags = toc->toc_entry[i].flags | TOC_ENTRY_INVALID;
+		}
+	}
+}
+
+void
+gamma_toc_lock_acquire_x(gamma_toc *toc)
+{
+	LWLockAcquire(&toc->toc_lwlock, LW_EXCLUSIVE);
+}
+
+void
+gamma_toc_lock_acquire_s(gamma_toc *toc)
+{
+	LWLockAcquire(&toc->toc_lwlock, LW_SHARED);
+}
+
+void
+gamma_toc_lock_release(gamma_toc *toc)
+{
+	LWLockRelease(&toc->toc_lwlock);
+}

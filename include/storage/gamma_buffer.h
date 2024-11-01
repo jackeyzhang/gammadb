@@ -1,0 +1,28 @@
+/*
+ * Copyright (c) 2024 Gamma Data, Inc. <jackey@gammadb.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef GAMMA_BUFFER_H
+#define GAMMA_BUFFER_H
+
+#include "storage/gamma_toc.h"
+
+extern void gamma_buffer_startup(void);
+extern bool gamma_buffer_add_cv(Oid relid, Oid rgid, int attno, uint32 dim,
+		char *data, Size values_nbytes, bool *nulls, Size isnull_nbytes);
+extern bool gamma_buffer_get_cv(Oid relid, Oid rgid, int16 attno, uint32 *dim,
+			char **data, Size *values_nbytes, bool **nulls, Size *isnull_nbytes);
+extern void gamma_buffer_invalid_rel(Oid relid);
+
+#endif

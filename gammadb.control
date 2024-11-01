@@ -1,0 +1,4 @@
+comment = 'gammadb'
+default_version = '0.1'
+module_pathname = '$libdir/gammadb'
+relocatable = true
