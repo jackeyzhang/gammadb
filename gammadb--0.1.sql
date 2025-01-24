@@ -13,35 +13,6 @@ CREATE ACCESS METHOD gamma
 	TYPE TABLE
 	HANDLER gammadb_namespace.gammadb_ctable_am_handler;
 
---create vci handler
-CREATE FUNCTION gammadb_namespace.gamma_index_handler(internal)
-RETURNS index_am_handler
-AS 'MODULE_PATHNAME', 'gamma_index_handler'
-LANGUAGE C VOLATILE STRICT;
-
-CREATE ACCESS METHOD gci
-	TYPE index
-	HANDLER gammadb_namespace.gamma_index_handler;
-
-
-
-CREATE OPERATOR CLASS bool_ops        DEFAULT FOR TYPE bool        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS bytea_ops       DEFAULT FOR TYPE bytea       USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS char_ops        DEFAULT FOR TYPE "char"      USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS name_ops        DEFAULT FOR TYPE name        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS int8_ops        DEFAULT FOR TYPE int8        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS int2_ops        DEFAULT FOR TYPE int2        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS int4_ops        DEFAULT FOR TYPE int4        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS text_ops        DEFAULT FOR TYPE text        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS float4_ops      DEFAULT FOR TYPE float4      USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS float8_ops      DEFAULT FOR TYPE float8      USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS bpchar_ops      DEFAULT FOR TYPE bpchar      USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS date_ops        DEFAULT FOR TYPE date        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS time_ops        DEFAULT FOR TYPE time        USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS timestamp_ops   DEFAULT FOR TYPE timestamp   USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS timestamptz_ops DEFAULT FOR TYPE timestamptz USING gci AS OPERATOR 1 =;
-CREATE OPERATOR CLASS numeric_ops     DEFAULT FOR TYPE numeric     USING gci AS OPERATOR 1 =;
-
 -- switch to public namespace
 SET search_path = public;
 
