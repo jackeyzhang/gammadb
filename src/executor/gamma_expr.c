@@ -17,6 +17,7 @@
 
 #include "access/nbtree.h"
 #include "catalog/objectaccess.h"
+#include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "executor/execExpr.h"
 #include "executor/nodeSubplan.h"
@@ -436,7 +437,12 @@ gamma_exec_init_func(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 	ListCell   *lc;
 
 	/* Check permission to call function */
+#if PG_VERSION_NUM >= 160000
+	aclresult = object_aclcheck(ProcedureRelationId, funcid, GetUserId(), ACL_EXECUTE);
+#else
 	aclresult = pg_proc_aclcheck(funcid, GetUserId(), ACL_EXECUTE);
+#endif
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(funcid));
 	InvokeFunctionExecuteHook(funcid);
@@ -1672,6 +1678,9 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_CASE_TESTVAL,
 		&&CASE_EEOP_MAKE_READONLY,
 		&&CASE_EEOP_IOCOERCE,
+#if PG_VERSION_NUM >= 170000
+		&&CASE_EEOP_IOCOERCE_SAFE,
+#endif
 		&&CASE_EEOP_DISTINCT,
 		&&CASE_EEOP_NOT_DISTINCT,
 		&&CASE_EEOP_NULLIF,
@@ -1698,9 +1707,21 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_SCALARARRAYOP,
 		&&CASE_EEOP_HASHED_SCALARARRAYOP,
 		&&CASE_EEOP_XMLEXPR,
+#if PG_VERSION_NUM >= 160000
+		&&CASE_EEOP_JSON_CONSTRUCTOR,
+		&&CASE_EEOP_IS_JSON,
+#endif
+#if PG_VERSION_NUM >= 170000
+		&&CASE_EEOP_JSONEXPR_PATH,
+		&&CASE_EEOP_JSONEXPR_COERCION,
+		&&CASE_EEOP_JSONEXPR_COERCION_FINISH,
+#endif
 		&&CASE_EEOP_AGGREF,
 		&&CASE_EEOP_GROUPING_FUNC,
 		&&CASE_EEOP_WINDOW_FUNC,
+#if PG_VERSION_NUM >= 170000
+		&&CASE_EEOP_MERGE_SUPPORT_FUNC,
+#endif
 		&&CASE_EEOP_SUBPLAN,
 		&&CASE_EEOP_AGG_STRICT_DESERIALIZE,
 		&&CASE_EEOP_AGG_DESERIALIZE,
@@ -1713,6 +1734,10 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_AGG_PLAIN_TRANS_INIT_STRICT_BYREF,
 		&&CASE_EEOP_AGG_PLAIN_TRANS_STRICT_BYREF,
 		&&CASE_EEOP_AGG_PLAIN_TRANS_BYREF,
+#if PG_VERSION_NUM >= 160000
+		&&CASE_EEOP_AGG_PRESORTED_DISTINCT_SINGLE,
+		&&CASE_EEOP_AGG_PRESORTED_DISTINCT_MULTI,
+#endif
 		&&CASE_EEOP_AGG_ORDERED_TRANS_DATUM,
 		&&CASE_EEOP_AGG_ORDERED_TRANS_TUPLE,
 		&&CASE_EEOP_LAST
@@ -2168,6 +2193,14 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+#if PG_VERSION_NUM >= 170000
+		EEO_CASE(EEOP_IOCOERCE_SAFE)
+		{
+			elog(ERROR, "EEOP_IOCOERCE_SAFE is not used in GammaDB.");
+			EEO_NEXT();
+		}
+#endif
+
 		EEO_CASE(EEOP_DISTINCT)
 		{
 			/*
@@ -2312,6 +2345,23 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+#if PG_VERSION_NUM >= 160000
+		EEO_CASE(EEOP_JSON_CONSTRUCTOR)
+		EEO_CASE(EEOP_IS_JSON)
+		{
+			elog(ERROR, "EEOP_JSON... is not used in GammaDB.");
+			EEO_NEXT();
+		}
+#endif
+#if PG_VERSION_NUM >= 170000
+		EEO_CASE(EEOP_JSONEXPR_PATH)
+		EEO_CASE(EEOP_JSONEXPR_COERCION)
+		EEO_CASE(EEOP_JSONEXPR_COERCION_FINISH)
+		{
+			elog(ERROR, "EEOP_JSON... is not used in GammaDB.");
+			EEO_NEXT();
+		}
+#endif
 		EEO_CASE(EEOP_AGGREF)
 		{
 			/*
@@ -2351,6 +2401,13 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+#if PG_VERSION_NUM >= 170000
+		EEO_CASE(EEOP_MERGE_SUPPORT_FUNC)
+		{
+			elog(ERROR, "EEOP_MERGE_SUPPORT_FUNC is not used in GammaDB.");
+			EEO_NEXT();
+		}
+#endif
 		EEO_CASE(EEOP_SUBPLAN)
 		{
 			/* too complex for an inline implementation */
@@ -2565,6 +2622,15 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+#if PG_VERSION_NUM >= 160000
+		EEO_CASE(EEOP_AGG_PRESORTED_DISTINCT_SINGLE)
+		EEO_CASE(EEOP_AGG_PRESORTED_DISTINCT_MULTI)
+		{
+			elog(ERROR, "EEOP_AGG_PRESORTED... is not used in GammaDB.");
+			EEO_NEXT();
+		}
+#endif
+
 		/* process single-column ordered aggregate datum */
 		EEO_CASE(EEOP_AGG_ORDERED_TRANS_DATUM)
 		{
@@ -2671,10 +2737,17 @@ gamma_exec_agg_plain_trans_byref(AggState *aggstate, AggStatePerTrans pertrans,
 	 * argument.
 	 */
 	if (DatumGetPointer(newVal) != DatumGetPointer(pergroup->transValue))
+#if PG_VERSION_NUM >= 160000
+		newVal = ExecAggCopyTransValue(aggstate, pertrans,
+									   newVal, fcinfo->isnull,
+									   pergroup->transValue,
+									   pergroup->transValueIsNull);
+#else
 		newVal = ExecAggTransReparent(aggstate, pertrans,
 									  newVal, fcinfo->isnull,
 									  pergroup->transValue,
 									  pergroup->transValueIsNull);
+#endif
 
 	pergroup->transValue = newVal;
 	pergroup->transValueIsNull = fcinfo->isnull;

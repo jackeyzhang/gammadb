@@ -744,9 +744,9 @@ ctable_set_new_filelocator(Relation rel,
 					errmsg("Unlogged columnar tables are not supported")));
 	}
 
-	if (rel->rd_locator.relNumber != newrnode->relNumber)
+	if (rel->rd_locator.relNumber != newrlocator->relNumber)
 	{
-		Oid cvrelid = gamma_meta_get_cv_table_rel(rel);
+		cvrelid = gamma_meta_get_cv_table_rel(rel);
 		if (OidIsValid(cvrelid))
 		{
 			heap_drop_with_catalog(cvrelid);

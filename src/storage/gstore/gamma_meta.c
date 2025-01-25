@@ -255,7 +255,12 @@ gamma_meta_truncate_cvtable(Oid cvrelid)
 	Relation cvrel = table_open(cvrelid, AccessExclusiveLock);
 
 	if (cvrel->rd_createSubid == mySubid ||
-		cvrel->rd_newRelfilenodeSubid == mySubid)
+#if PG_VERSION_NUM >= 160000
+		cvrel->rd_newRelfilelocatorSubid == mySubid
+#else
+		cvrel->rd_newRelfilenodeSubid == mySubid
+#endif
+		)
 	{
 		heap_truncate_one_rel(cvrel);
 	}
@@ -265,7 +270,11 @@ gamma_meta_truncate_cvtable(Oid cvrelid)
 		ReindexParams reindex_params = {0};
 
 		CheckTableForSerializableConflictIn(cvrel);
+#if PG_VERSION_NUM >= 160000
+		RelationSetNewRelfilenumber(cvrel, cvrel->rd_rel->relpersistence);
+#else
 		RelationSetNewRelfilenode(cvrel, cvrel->rd_rel->relpersistence);
+#endif
 
 		toast_relid = cvrel->rd_rel->reltoastrelid;
 		if (OidIsValid(toast_relid))
@@ -273,16 +282,26 @@ gamma_meta_truncate_cvtable(Oid cvrelid)
 			Relation	toastrel = relation_open(toast_relid,
 					AccessExclusiveLock);
 
+#if PG_VERSION_NUM >= 160000
+			RelationSetNewRelfilenumber(toastrel,
+					toastrel->rd_rel->relpersistence);
+#else
 			RelationSetNewRelfilenode(toastrel,
 					toastrel->rd_rel->relpersistence);
+#endif
 			table_close(toastrel, NoLock);
 		}
 
 		/*
 		 * Reconstruct the indexes to match, and we're done.
 		 */
+#if PG_VERSION_NUM >= 170000
+		reindex_relation(NULL, cvrelid, REINDEX_REL_PROCESS_TOAST,
+				&reindex_params);
+#else
 		reindex_relation(cvrelid, REINDEX_REL_PROCESS_TOAST,
 				&reindex_params);
+#endif
 	}
 
 	pgstat_count_truncate(cvrel);
