@@ -390,5 +390,8 @@ gamma_buffer_dsm_attach(void)
 gamma_toc *
 gamma_buffer_dsm_toc(void)
 {
+	if (dsm_toc == NULL)
+		gamma_buffer_dsm_startup();
+
 	return dsm_toc;
 }
