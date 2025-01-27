@@ -706,14 +706,14 @@ SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM 
 ----------------------+----+--------------+-------
  -7918574344944952583 | 26 |              |    24
  -9154375582268094750 |  1 |              |    20
- -9154375582268094750 |  1 |              |    20
- -7725127544842036118 | 21 |              |    16
  -8455721461950319637 | 21 |              |    16
+ -7725127544842036118 | 21 |              |    16
  -8284294157038592779 | 11 |              |    16
  -7918574344944952583 |  9 |              |    14
- -9158995094684353950 | 12 |              |    14
- -7018910098174567459 | 57 |              |    14
  -7904263253391067902 | 34 |              |    14
+ -7018910098174567459 | 57 |              |    14
+ -7018910098174567459 | 56 |              |    14
+ -9158995094684353950 | 12 |              |    14
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID FROM hits WHERE UserID = 435090932899640449;
@@ -1043,14 +1043,14 @@ SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FR
        watchid       |  clientip   | c | sum |          avg          
 ---------------------+-------------+---+-----+-----------------------
  8098360327458671085 |  1021792157 | 1 |   0 | 1917.0000000000000000
+ 8974357120245289287 |  1404486817 | 1 |   1 | 1828.0000000000000000
  9057243636294547749 |  1361113944 | 1 |   1 | 1638.0000000000000000
+ 6254117564058232681 | -1258870999 | 1 |   0 | 1917.0000000000000000
  8421919248487172933 |  1327608256 | 1 |   1 | 1368.0000000000000000
  6646193180796909593 |  1921828993 | 1 |   0 |  339.0000000000000000
  6531309563837464406 | -1972351289 | 1 |   0 |  582.0000000000000000
  4995451601201582389 |  1827516327 | 1 |   1 | 1917.0000000000000000
  6191842844442845803 | -1866747362 | 1 |   1 | 1828.0000000000000000
- 5673946021777526483 |  1896512163 | 1 |   1 | 1917.0000000000000000
- 8782058241109207654 |    33789795 | 1 |   1 | 1638.0000000000000000
  5342628315659479986 |  1342243722 | 1 |   1 | 1638.0000000000000000
 (10 rows)
 
@@ -1079,7 +1079,7 @@ SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
  https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538 |  62
  https://produkty/full&qset=159508&s_yers                                                                               |  60
  https://produkty%2Fproduct_id                                                                                          |  50
- https://produkty/placetti-club/songs/search                                                                            |  43
+ https://produkty%2Fpulove.ru/moscow                                                                                    |  43
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
@@ -1101,15 +1101,15 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
  ?column? |                                                          url                                                           |  c  
 ----------+------------------------------------------------------------------------------------------------------------------------+-----
         1 | https://produkty%2Fproduct                                                                                             | 225
+        1 | https://produkty%2Fpulove.ru/album/login                                                                               | 140
         1 |                                                                                                                        | 130
+        1 | https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul                                                                | 118
         1 | https://produkty/kurortmag                                                                                             | 108
         1 | https://produkty%2F                                                                                                    | 102
         1 | https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538 |  62
         1 | https://produkty/full&qset=159508&s_yers                                                                               |  60
         1 | https://produkty%2Fproduct_id                                                                                          |  50
         1 | https://produkty/placetti-club/songs/search                                                                            |  43
-        1 | https://produkty%2Fpulove.ru/moscow                                                                                    |  43
-        1 | http://kolaev/detail/554246_ru_277,37306                                                                               |  40
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
@@ -1769,16 +1769,16 @@ EXPLAIN (COSTS OFF) SELECT UserID, extract(minute FROM EventTime) AS m, SearchPh
 SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
         userid        | m  | searchphrase | count 
 ----------------------+----+--------------+-------
- -5846412503837861269 | 53 |              |    24
  -7918574344944952583 | 26 |              |    24
  -9154375582268094750 |  1 |              |    20
  -7725127544842036118 | 21 |              |    16
- -8455721461950319637 | 21 |              |    16
  -8284294157038592779 | 11 |              |    16
- -9158995094684353950 | 12 |              |    14
+ -8455721461950319637 | 21 |              |    16
  -7018910098174567459 | 56 |              |    14
- -7918574344944952583 |  9 |              |    14
  -7904263253391067902 | 34 |              |    14
+ -7018910098174567459 | 57 |              |    14
+ -7918574344944952583 |  9 |              |    14
+ -9158995094684353950 | 12 |              |    14
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID FROM hits WHERE UserID = 435090932899640449;
@@ -2088,16 +2088,16 @@ EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip  | c | sum |          avg          
 ---------------------+------------+---+-----+-----------------------
- 7524559875189828840 | 1717133347 | 2 |   2 | 1368.0000000000000000
- 8379108436677101566 | -540344394 | 2 |   0 | 1638.0000000000000000
- 8078701419413490136 | 1138248534 | 2 |   0 | 1368.0000000000000000
- 6321710387061294876 |  743072690 | 2 |   0 | 1368.0000000000000000
+ 7321312914605605148 | 1558751110 | 1 |   1 | 1996.0000000000000000
+ 6316522711047084694 | 1863281725 | 1 |   0 | 1368.0000000000000000
+ 4978746709785681706 |  914180760 | 1 |   1 | 1087.0000000000000000
+ 8878638630742086443 | 1160440842 | 1 |   0 | 1638.0000000000000000
  7302370717697016849 | 2050242653 | 1 |   0 | 1638.0000000000000000
  7242385807033236675 | 1452202120 | 1 |   0 | 1917.0000000000000000
- 6316522711047084694 | 1863281725 | 1 |   0 | 1368.0000000000000000
- 6385358291442398357 |  699726188 | 1 |   1 | 1638.0000000000000000
- 8878638630742086443 | 1160440842 | 1 |   0 | 1638.0000000000000000
+ 6812614815043917687 |  118754044 | 1 |   0 | 1638.0000000000000000
  6919960172226572368 | 2139306194 | 1 |   1 | 1638.0000000000000000
+ 6385358291442398357 |  699726188 | 1 |   1 | 1638.0000000000000000
+ 4652272992971603081 | 1864958255 | 1 |   0 | 1368.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
@@ -2118,18 +2118,18 @@ EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG
 (12 rows)
 
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
-       watchid       |  clientip   | c | sum |          avg          
----------------------+-------------+---+-----+-----------------------
- 6219252456126364178 |  1548972951 | 3 |   3 | 1638.0000000000000000
- 6468625406285029114 |   874717372 | 2 |   0 | 1917.0000000000000000
- 5140123485076790046 |  -841208812 | 2 |   2 |  582.0000000000000000
- 6019266385908753941 | -2083908519 | 2 |   0 | 1996.0000000000000000
- 6694732851128292694 | -1555581670 | 2 |   0 | 1638.0000000000000000
- 5898358773913721688 |   743072690 | 2 |   2 | 1368.0000000000000000
- 5166228478343544610 |  -841208812 | 2 |   0 |  582.0000000000000000
- 8949236019754001086 |  1143708909 | 2 |   0 | 1638.0000000000000000
- 6855328024358373845 |  1745080255 | 2 |   0 | 1917.0000000000000000
- 5544860564254378694 | -1689537417 | 2 |   0 | 2038.0000000000000000
+       watchid       |  clientip   | c | sum |          avg           
+---------------------+-------------+---+-----+------------------------
+ 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
+ 5206346422301499756 | -1216690514 | 1 |   0 | 0.00000000000000000000
+ 4893108677938900633 |  1735595921 | 1 |   1 |  1638.0000000000000000
+ 6426257563931096930 |  2069778861 | 1 |   0 |  1087.0000000000000000
+ 5217719856882989028 |  1714527409 | 1 |   0 |  2428.0000000000000000
+ 7953783461857148347 |  1342243722 | 1 |   0 |  1638.0000000000000000
+ 6103859743937398143 |  1088271979 | 1 |   0 |  1368.0000000000000000
+ 5143451110840006257 |  2139306194 | 1 |   0 |  1638.0000000000000000
+ 5737380807278362037 |  1714527409 | 1 |   0 |  2428.0000000000000000
+ 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
@@ -2152,16 +2152,16 @@ EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c 
 SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
                                                           url                                                           |  c  
 ------------------------------------------------------------------------------------------------------------------------+-----
-                                                                                                                        | 260
  https://produkty%2Fproduct                                                                                             | 225
- https://produkty%2F                                                                                                    | 204
  https://produkty%2Fpulove.ru/album/login                                                                               | 140
+                                                                                                                        | 130
  https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul                                                                | 118
  https://produkty/kurortmag                                                                                             | 108
- https://produkty%2Fpulove.ru/moscow                                                                                    |  86
+ https://produkty%2F                                                                                                    | 102
  https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538 |  62
  https://produkty/full&qset=159508&s_yers                                                                               |  60
  https://produkty%2Fproduct_id                                                                                          |  50
+ https://produkty/placetti-club/songs/search                                                                            |  43
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
@@ -2186,15 +2186,15 @@ EXPLAIN (COSTS OFF) SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER
 SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
  ?column? |                                                          url                                                           |  c  
 ----------+------------------------------------------------------------------------------------------------------------------------+-----
+        1 | https://produkty%2Fproduct                                                                                             | 225
         1 | https://produkty%2Fpulove.ru/album/login                                                                               | 140
         1 |                                                                                                                        | 130
         1 | https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul                                                                | 118
         1 | https://produkty/kurortmag                                                                                             | 108
         1 | https://produkty%2F                                                                                                    | 102
-        1 | https://produkty%2Fpulove.ru/moscow                                                                                    |  86
         1 | https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538 |  62
         1 | https://produkty/full&qset=159508&s_yers                                                                               |  60
-        1 | https://produkty%2Fkategory_id=616264656136908563                                                                      |  60
+        1 | https://produkty%2Fproduct_id                                                                                          |  50
         1 | https://produkty/placetti-club/songs/search                                                                            |  43
 (10 rows)
 
