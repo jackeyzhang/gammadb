@@ -730,7 +730,6 @@ restart:
 			return entry;
 		}
 
-		curelem = SH_NEXT(tb, curelem, startelem);
 		curhash = SH_ENTRY_HASH(tb, entry);
 		curoptimal = SH_INITIAL_BUCKET(tb, curhash);
 		curdist = SH_DISTANCE_FROM_OPTIMAL(tb, curoptimal, curelem);
