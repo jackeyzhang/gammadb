@@ -609,5 +609,7 @@ tts_vector_slot_fill_vector(TupleTableSlot *slot, TupleTableSlot *src_slot, int 
 		}
 	}
 
+	vslot->skip[row] = false;
+
 	return;
 }

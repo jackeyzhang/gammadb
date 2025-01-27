@@ -305,6 +305,7 @@ vec_sort_exec(CustomScanState *node)
 	i = 0;
 	while (i < VECTOR_SIZE)
 	{
+		MinimalTuple tuple = NULL;
 		(void) tuplesort_gettupleslot(tuplesortstate,
 									  ScanDirectionIsForward(dir),
 									  false, rowslot, NULL);
@@ -312,6 +313,9 @@ vec_sort_exec(CustomScanState *node)
 		if (TupIsNull(rowslot))
 			break;
 
+		//TODO: remove copy
+		tuple = ExecCopySlotMinimalTuple(rowslot);
+		ExecStoreMinimalTuple(tuple, rowslot, false);
 		slot_getallattrs(rowslot);
 		tts_vector_slot_fill_vector(slot, rowslot, i);
 		i++;
