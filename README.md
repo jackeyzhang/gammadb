@@ -23,6 +23,29 @@ These innovative designs aim to significantly enhance the analytical performance
 
 In preliminary tests, we conducted a performance evaluation on a series of analytical SQL queries. The results demonstrated that, compared with native PostgreSQL, the execution efficiency of some SQL queries was improved by hundreds or even thousands of times.
 
+## NOTE
+
+Currently, GammaDB is recommended for experiments, testing, benchmarking, etc., but **is not recommended for production usage**. If you are interested in GammaDB's benefits in production, please [contact us](mailto:jackey@gammadb.com).
+
+## Setup
+
+1. Before starting working with GammaDB, Modify shared_preload_libraries in postgresql.conf:
+
+```
+shared_preload_libraries = 'gammadb'
+```
+
+2. Run the following SQL query to create extensions:
+
+```
+CREATE EXTENSION gammadb;
+```
+
+3. Create columnar tables on GammaDB engine:
+
+```
+CREATE TABLE table_name (...) USING gamma;
+```
 
 ## Roadmap
 
@@ -40,9 +63,6 @@ In preliminary tests, we conducted a performance evaluation on a series of analy
   - [ ] Support some AI capabilities.
   - [ ] Support some query rewrite optimizations.
 
-## NOTE
-
-Currently, GammaDB is recommended for experiments, testing, benchmarking, etc., but **is not recommended for production usage**. If you are interested in GammaDB's benefits in production, please [contact us](mailto:jackey@gammadb.com).
 
 ## Support
 
