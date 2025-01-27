@@ -36,9 +36,6 @@
 //#include "../src/postgres/executor/execExpr.c"
 
 static ExprState *
-VecExecBuildAggTransPerPhase(AggState *aggstate, AggStatePerPhase phase,
-				  bool doSort, bool doHash, bool nullcheck);
-static ExprState *
 VecExecBuildAggTransPerSet(AggState *aggstate, AggStatePerPhase phase,
 				  int setno, int setoff, bool ishash, bool nullcheck);
 
@@ -835,7 +832,7 @@ VecExecBuildAggTrans(AggState *aggstate, bool nullcheck)
 
 }
 
-static ExprState *
+ExprState *
 VecExecBuildAggTransPerPhase(AggState *aggstate, AggStatePerPhase phase,
 				  bool doSort, bool doHash, bool nullcheck)
 {

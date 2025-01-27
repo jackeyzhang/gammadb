@@ -115,6 +115,8 @@ extern VecTupleHashTable VecBuildTupleHashTable(PlanState *parent,
 
 extern void VecResetTupleHashTable(VecTupleHashTable hashtable);
 extern void VecExecBuildAggTrans(AggState *aggstate, bool nullcheck);
+extern ExprState * VecExecBuildAggTransPerPhase(AggState *aggstate, AggStatePerPhase phase,
+				  bool doSort, bool doHash, bool nullcheck);
 extern VecTupleHashEntry VecLookupTupleHashEntryHash(VecTupleHashTable hashtable,
 							TupleTableSlot *slot, bool *isnew, uint32 hash);
 extern void clear_nonvec_hash_tables(AggState *aggstate);
