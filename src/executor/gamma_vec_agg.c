@@ -1350,7 +1350,7 @@ gamma_vec_plain_advance_aggregates(VecAggState *vaggstate)
 			Datum value;
 			bool isnull;
 
-			for (i = 0; i < VECTOR_SIZE; i++)
+			for (i = 0; i < vec_value->dim; i++)
 			{
 				if (indexarr != NULL)
 				{
@@ -1362,8 +1362,8 @@ gamma_vec_plain_advance_aggregates(VecAggState *vaggstate)
 				}
 				else
 				{
-					value = vec_value->values[0];
-					isnull = vec_value->isnull[0];
+					value = vec_value->values[i];
+					isnull = vec_value->isnull[i];
 				}
 
 				if (!pertrans->haslast ||
