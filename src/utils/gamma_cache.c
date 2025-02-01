@@ -39,34 +39,6 @@ static Oid boolexpr_and_oid = InvalidOid;
 static Oid boolexpr_or_oid = InvalidOid;
 static Oid boolexpr_not_oid = InvalidOid;
 
-static ExprStateEvalFunc exec_interp_expr = NULL;
-
-static void
-gamma_startup_interp_expr_proc()
-{
-	ExprState *state = gamma_vec_init_interp_expr_proc();
-
-	exec_interp_expr = (ExprStateEvalFunc)state->evalfunc_private;
-
-	pfree(state);
-	return;
-}
-
-static void
-gamma_uninstall_interp_expr_proc()
-{
-	exec_interp_expr = NULL;
-}
-
-ExprStateEvalFunc
-gamma_get_interp_expr_proc()
-{
-	if (unlikely(exec_interp_expr == NULL))
-		gamma_startup_interp_expr_proc();
-
-	return exec_interp_expr;
-}
-
 /*
  * Get the function oid for replacing BoolExpr(AND_EXPR) in vectorized mode
  */ 
@@ -219,7 +191,6 @@ gamma_cache_startup()
 	//gamma_startup_boolexpr_and();
 	//gamma_startup_boolexpr_or();
 	//gamma_startup_boolexpr_not();
-	gamma_startup_interp_expr_proc();
 }
 
 void
@@ -228,5 +199,4 @@ gamma_cache_uninstall()
 	gamma_uninstall_boolexpr_and();
 	gamma_uninstall_boolexpr_or();
 	gamma_uninstall_boolexpr_not();
-	gamma_uninstall_interp_expr_proc();
 }

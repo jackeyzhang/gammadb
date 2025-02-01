@@ -133,5 +133,4 @@ extern bool gamma_vec_grouping_row_match(AggState *aggstate, int numCols,
 						 const TupleTableSlot *rowslot,
 						 const TupleTableSlot *vecslot, int cur_row);
 
-extern ExprState * gamma_vec_init_interp_expr_proc(void);
 #endif /* GAMMA_VEC_EXEC_GROUPING_H */

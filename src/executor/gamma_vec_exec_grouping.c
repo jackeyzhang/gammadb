@@ -33,8 +33,6 @@
 #include "utils/gamma_cache.h"
 #include "utils/utils.h"
 
-//#include "../src/postgres/executor/execExpr.c"
-
 static ExprState *
 VecExecBuildAggTransPerSet(AggState *aggstate, AggStatePerPhase phase,
 				  int setno, int setoff, bool ishash, bool nullcheck);
@@ -65,71 +63,6 @@ static inline uint32 VecTupleHashTableHash_internal(struct vec_tuplehash_hash *t
 static inline VecTupleHashEntry VecLookupTupleHashEntry_internal(VecTupleHashTable vec_hashtable,
 														   TupleTableSlot *slot,
 														   bool *isnew, uint32 hash);
-#if 0
-#define SH_STORE_HASH
-static VecTupleHashEntry
-gamma_vec_tuplehash_insert_hash(struct vec_tuplehash_hash *tb,
-								TupleTableSlot *slot,
-								uint32 hash, bool *found)
-{
-	uint32		startelem;
-	uint32		curelem;
-	VecTupleHashEntry data;
-
-	if (unlikely(tb->members >= tb->grow_threshold))
-	{
-        if (unlikely(tb->size == PG_UINT32_MAX))
-			elog(ERROR, "hash table size exceeded");
-
-		/*
-		 * The gamma_vec_hashtable_grow function is called once
-		 * for every VECTOR_SIZE.
-		 */
-	}
-
-	/* perform insert, start bucket search at optimal location */
-	data = tb->data;
-	startelem = vec_tuplehash_initial_bucket(tb, hash);
-	curelem = startelem;
-	while (true)
-	{
-		VecTupleHashEntry entry = &data[curelem];
-
-		/* any empty bucket can directly be used */
-		if (entry->status == 0/*TODO: EMPTY*/)
-		{
-			tb->members++;
-			entry->first_slot = slot;
-#ifdef SH_STORE_HASH
-			entry->hash = hash;
-#endif
-			entry->status = 1;/*TODO:SH_STATUS_IN_USE*/;
-			*found = false;
-			return entry;
-		}
-
-		/*
-		 * If the bucket is not empty, we either found a match (in which case
-		 * we're done), or we have to decide whether to skip over or move the
-		 * colliding entry. When the colliding element's distance to its
-		 * optimal position is smaller than the to-be-inserted entry's, we
-		 * shift the colliding entry (and its followers) forward by one.
-		 */
-
-		if (entry->hash == hash && VecTupleHashTableMatch(tb, entry->first_slot, slot))
-		{
-			Assert(entry->status == 1/*TODO:SH_STATUS_IN_USE*/);
-			*found = true;
-			return entry;
-		}
-
-		curelem = vec_tuplehash_next(tb, curelem, startelem);
-	}
-}
-
-#undef SH_STORE_HASH
-#undef SH_MANUAL_GROW
-#endif
 
 /*****************************************************************************
  *		Utility routines for grouping tuples together
@@ -143,9 +76,6 @@ vec_exec_tuples_match_prepare(int numCols, const Oid *eqOperators)
 
 	for (i = 0; i < numCols; i++) {
 		Oid eq_opr = eqOperators[i];
-		//Oid eq_function;
-
-		//eq_function = get_opcode(eq_opr);
 		fmgr_info(eq_opr, &eqFunctions[i]);
 	}
 
@@ -171,33 +101,6 @@ vec_exec_grouping_match_prepare(int numCols,
 	return eqFunctions;
 }
 
-/*****************************************************************************
- *		Utility routines for all-in-memory hash tables
- *
- * These routines build hash tables for grouping tuples together (eg, for
- * hash aggregation).  There is one entry for each not-distinct set of tuples
- * presented.
- *****************************************************************************/
-
-/*
- * Construct an empty TupleHashTable
- *
- *	numCols, keyColIdx: identify the tuple fields to use as lookup key
- *	eqfunctions: equality comparison functions to use
- *	hashfunctions: datatype-specific hashing functions to use
- *	nbuckets: initial estimate of hashtable size
- *	additionalsize: size of data stored in ->additional
- *	metacxt: memory context for long-lived allocation, but not per-entry data
- *	tablecxt: memory context in which to store table entries
- *	tempcxt: short-lived context for evaluation hash and comparison functions
- *
- * The function arrays may be made with execTuplesHashPrepare().  Note they
- * are not cross-type functions, but expect to see the table datatype(s)
- * on both sides.
- *
- * Note that keyColIdx, eqfunctions, and hashfunctions must be allocated in
- * storage that will live as long as the hashtable does.
- */
 VecTupleHashTable
 VecBuildTupleHashTableExt(PlanState *parent,
 					   TupleDesc inputDesc,
@@ -211,7 +114,6 @@ VecBuildTupleHashTableExt(PlanState *parent,
 					   MemoryContext tempcxt,
 					   bool use_variable_hash_iv)
 {
-	//TupleHashTable hashtable;
 	VecTupleHashTable hashtable;
 	Size		entrysize = sizeof(VecTupleHashEntryData) + additionalsize;
 	Size		hash_mem_limit;
@@ -228,7 +130,6 @@ VecBuildTupleHashTableExt(PlanState *parent,
 	oldcontext = MemoryContextSwitchTo(metacxt);
 
 	hashtable = (VecTupleHashTable) palloc(sizeof(VecTupleHashTableData));
-	//hashtable = (TupleHashTable) vhashtable;
 
 	hashtable->numCols = numCols;
 	hashtable->keyColIdx = keyColIdx;
@@ -354,13 +255,6 @@ VecLookupTupleHashEntryHash(VecTupleHashTable hashtable, TupleTableSlot *slot,
 
 	/* Need to run the hash functions in short-lived context */
 	oldContext = MemoryContextSwitchTo(hashtable->tempcxt);
-
-	/* set up data needed by hash and match functions */
-#if 0
-	hashtable->inputslot = slot;
-	hashtable->in_hash_funcs = hashtable->tab_hash_funcs;
-	hashtable->cur_eq_func = hashtable->tab_eq_func;
-#endif
 
 	entry = VecLookupTupleHashEntry_internal(hashtable, slot, isnew, hash);
 	Assert(entry == NULL || entry->hash == hash);
@@ -1191,9 +1085,6 @@ gamma_vec_hashtable_grow(AggState *aggstate, int setno, int add_size)
 
 	if (tb->members + add_size >= tb->grow_threshold)
 	{
-		//if (unlikely(tb->size + add_size > tb->size * 2))
-		//	tb->size = tb->size + add_size;
-
 		if (unlikely(tb->size == ( (((uint64) PG_UINT32_MAX) + 1))))
 			sh_error("hash table size exceeded");
 
@@ -1201,24 +1092,4 @@ gamma_vec_hashtable_grow(AggState *aggstate, int setno, int add_size)
 	}
 
 	return;
-}
-
-ExprState *
-gamma_vec_init_interp_expr_proc()
-{
-	ExprState *state = makeNode(ExprState);
-	ExprEvalStep scratch = {0};
-	int i;
-
-	for (i = 0; i < 5; i++)
-	{
-		scratch.resvalue = NULL;
-		scratch.resnull = NULL;
-		scratch.opcode = EEOP_DONE;
-		gamma_expr_eval_push_step(state, &scratch);
-	}
-
-	gamma_exec_ready_expr(state);
-
-	return state;
 }

@@ -20,8 +20,6 @@ extern Oid gamma_get_boolexpr_and_oid(void);
 extern Oid gamma_get_boolexpr_or_oid(void);
 extern Oid gamma_get_boolexpr_not_oid(void);
 
-extern ExprStateEvalFunc gamma_get_interp_expr_proc(void);
-
 extern void gamma_cache_startup(void);
 extern void gamma_cache_uninstall(void);
 
