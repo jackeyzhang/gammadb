@@ -525,8 +525,9 @@ SH_RESET(SH_TYPE * tb)
 		SH_FREE(tb, p);
 	}
 	
+#define GAMMA_HASH_OLD_ENTRIES_ARRAY 32
 	SH_FREE(tb, tb->old_entries);
-	tb->old_entries_size = 32;
+	tb->old_entries_size = GAMMA_HASH_OLD_ENTRIES_ARRAY;
 	tb->old_entries_count = 0;
 	tb->old_entries = (char **) SH_ALLOCATE(tb, sizeof(char *) * tb->old_entries_size);
 

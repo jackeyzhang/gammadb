@@ -1432,10 +1432,9 @@ gamma_vec_refill_hash_entries(VecAggState *vaggstate,
 		}
 	}
 
-	/* batch process spill tuples */
+	/* spill tuples */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
-		int col;
 		TupleTableSlot *slot = aggstate->tmpcontext->ecxt_outertuple;
 		TupleTableSlot *rowslot = vaggstate->outer_tuple_slot;
 
@@ -1445,15 +1444,9 @@ gamma_vec_refill_hash_entries(VecAggState *vaggstate,
 		if (entries[i] != NULL)
 			continue;
 
-		//TODO:batch write ? move to same level with advance_agg?
-
-		for (col = 0; col < slot->tts_tupleDescriptor->natts; col++)
-		{
-			vdatum *vec_value = (vdatum *)DatumGetPointer(slot->tts_values[col]);
-			rowslot->tts_values[col] = VDATUM_DATUM(vec_value, i);
-			rowslot->tts_isnull[col] = VDATUM_ISNULL(vec_value, i);
-		}
-
+		//TODO:batch write
+		ExecClearTuple(rowslot);
+		tts_vector_slot_copy_one_row(rowslot, slot, i);
 		ExecStoreVirtualTuple(rowslot);
 
 		if (!*init_spill)
@@ -1467,7 +1460,7 @@ gamma_vec_refill_hash_entries(VecAggState *vaggstate,
 		pergroup[setno] = NULL;
 	}
 
-	/* batch tuples belonging to the same entry together*/
+	/* batch tuples belonging to the same entry together */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
 		if (entries[i] != NULL)
@@ -1545,10 +1538,9 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		}
 	}
 
-	/* batch process spill tuples */
+	/* spill tuples */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
-		int col;
 		HashAggSpill *spill = &aggstate->hash_spills[setno];
 		TupleTableSlot *slot = aggstate->tmpcontext->ecxt_outertuple;
 		TupleTableSlot *rowslot = vaggstate->outer_tuple_slot;
@@ -1562,14 +1554,9 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		if (entries[i] != NULL)
 			continue;
 
-		//TODO:batch write ? move to same level with advance_agg?
-		for (col = 0; col < slot->tts_tupleDescriptor->natts; col++)
-		{
-			vdatum *vec_value = (vdatum *)DatumGetPointer(slot->tts_values[col]);
-			rowslot->tts_values[col] = VDATUM_DATUM(vec_value, i);
-			rowslot->tts_isnull[col] = VDATUM_ISNULL(vec_value, i);
-		}
-
+		//TODO:batch write
+		ExecClearTuple(rowslot);
+		tts_vector_slot_copy_one_row(rowslot, slot, i);
 		ExecStoreVirtualTuple(rowslot);
 
 		if (spill->partitions == NULL)
@@ -1581,7 +1568,7 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		pergroup[setno] = NULL;
 	}
 
-	/* batch tuples belonging to the same entry together*/
+	/* batch tuples belonging to the same entry together */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
 		if (entries[i] != NULL)
