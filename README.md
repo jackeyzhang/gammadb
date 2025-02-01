@@ -51,7 +51,9 @@ CREATE TABLE table_name (...) USING gamma;
 
 - [x] 2025Q1
   - [x] Testing and fix some critical bugs (In-progress). 
-  - [ ] Support spill for HashAgg(Currently, a large work_mem needs to be set).
+  - [x] Support spill for HashAgg(20250201 completed).
+  - [ ] GammaDB optimizes performance(WIP).
+  - [ ] Test the index on the gamma table(WIP).
 
 - [ ] 2025Q2
   - [ ] Support Vectorized Hash Join.

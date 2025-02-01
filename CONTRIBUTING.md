@@ -26,11 +26,9 @@ work on the issue(s) you self-assigned, please use the `unassign me` link at the
 
 ### Development Workflow
 
-GammaDB is structured as a monorepo containing our Postgres extensions, our Docker setup, and our development tools for benchmarking and testing.
+For development instructions regarding a specific Postgres extension, please refer to the Development section of the README in the extension's subfolder.
 
-The development of our Postgres extensions is done via `pgrx`. For development instructions regarding a specific Postgres extension, please refer to the Development section of the README in the extension's subfolder.
-
-The development of GammaDB, which is the combination of our Postgres extensions and of community Postgres extensions packaged together, is done via Docker. If you are contributing to our Docker setup, we encourage you to use Docker Compose to build and test with the development file via `docker compose -f docker-compose.dev.yml up`.
+The development of GammaDB, which is the combination of our Postgres extensions and of community Postgres extensions packaged together, is done via Docker.
 
 ### Pull Request Workflow
 
@@ -39,21 +37,14 @@ flow for making a change:
 
 1. Before working on a change, please check to see if there is already a GitHub issue open for that change.
 2. If there is not, please open an issue first. This gives the community visibility into what you're working on and allows others to make suggestions and leave comments.
-3. Fork the GammaDB repo and branch out from the `dev` branch.
-4. Install [pre-commit](https://pre-commit.com/) hooks within your fork with `pre-commit install` to ensure code quality and consistency with upstream.
-5. Make your changes. If you've added new functionality, please add tests. We will not merge a feature without appropriate tests.
-6. Open a pull request towards the `dev` branch. Ensure that all tests and checks pass. Note that the GammaDB repository has pull request title linting in place and follows the [Conventional Commits spec](https://github.com/amannn/action-semantic-pull-request).
-7. Congratulations! Our team will review your pull request.
-
-### Documentation
-
-GammaDB's public-facing documentation is stored in the `docs` folder. If you are adding a new feature that requires new documentation, please add the documentation as part of your pull request. We will not merge a feature without appropriate documentation.
-
-## Legal Info
+3. Fork the GammaDB repo and branch out from the `main` branch.
+4. Make your changes. If you've added new functionality, please add tests. We will not merge a feature without appropriate tests.
+5. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the GammaDB repository has pull request title linting in place and follows the [Conventional Commits spec](https://github.com/amannn/action-semantic-pull-request).
+6. Congratulations! Our team will review your pull request.
 
 ### Contributor License Agreement
 
-In order for us, Retake, Inc. (dba GammaDB) to accept patches and other contributions from you, you need to adopt our GammaDB Contributor License Agreement (the "**CLA**"). The current version of the CLA can be found [here](https://cla-assistant.io/gammadb/gammadb).
+In order for us, Gamma Data, Inc. (dba GammaDB) to accept patches and other contributions from you, you need to adopt our GammaDB Contributor License Agreement (the "**CLA**"). The current version of the CLA can be found [here](https://cla-assistant.io/gammadb/gammadb).
 
 GammaDB uses a tool called CLA Assistant to help us keep track of the CLA status of contributors. CLA Assistant will post a comment to your pull request indicating whether you have signed the CLA or not. If you have not signed the CLA, you will need to do so before we can accept your contribution. Signing the CLA is a one-time process, is valid for all future contributions to GammaDB, and can be done in under a minute by signing in with your GitHub account.
 
