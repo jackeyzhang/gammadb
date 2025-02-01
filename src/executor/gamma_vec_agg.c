@@ -1,5 +1,7 @@
 /*
  * Copyright (c) 2024 Gamma Data, Inc. <jackey@gammadb.com>
+ * Portions Copyright (c) 1996-2022, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -11,6 +13,8 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * NOTE: Part of the codes in this file is a variation of PostgreSQL code.
  */
 
 #include "postgres.h"
@@ -79,8 +83,8 @@ typedef struct VecAggState
 	int entries_dim;
 	VecTupleHashEntry entries[VECTOR_SIZE];
 
-	int spill_dim;
-	short spill_indexarr[VECTOR_SIZE];
+	/* spill read vec slot */
+	TupleTableSlot *hash_spill_vec_rslot;
 } VecAggState;
 
 /* CustomScanMethods */
@@ -124,6 +128,9 @@ static inline void gamma_vec_vslot_set_rows(TupleTableSlot *slot,
 
 static void vec_build_hash_tables(AggState *aggstate);
 static void vec_build_hash_table(AggState *aggstate, int setno, long nbuckets);
+static void gamma_vec_refill_hash_entries(VecAggState *vaggstate,
+								HashAggBatch *batch,  HashAggSpill *spill,
+								bool *init_spill);
 
 static CustomPathMethods vec_agg_path_methods = {
 	"gamma_vec_agg",
@@ -228,17 +235,21 @@ vec_agg_begin(CustomScanState *node, EState *estate, int eflags)
 
 	vaggstate->grp_firstSlot = MakeTupleTableSlot(scandesc, &TTSOpsVector);
 
-	if (aggstate->hash_spill_wslot)
-	{
-		de_vec_tupledesc(
-				CreateTupleDescCopy(aggstate->hash_spill_wslot->tts_tupleDescriptor));
-	}
-
 	if (aggstate->hash_spill_rslot)
 	{
-		de_vec_tupledesc(
-				CreateTupleDescCopy(aggstate->hash_spill_rslot->tts_tupleDescriptor));
+		vaggstate->hash_spill_vec_rslot =
+			MakeTupleTableSlot(
+					CreateTupleDescCopy(aggstate->hash_spill_rslot->tts_tupleDescriptor),
+					&TTSOpsVector);
+
+		de_vec_tupledesc(aggstate->hash_spill_rslot->tts_tupleDescriptor);
 	}
+
+	if (aggstate->hash_spill_wslot)
+	{
+		de_vec_tupledesc(aggstate->hash_spill_wslot->tts_tupleDescriptor);
+	}
+
 
 	rowscandesc = CreateTupleDescCopy(scandesc);
 	de_vec_tupledesc(rowscandesc);
@@ -376,6 +387,7 @@ vec_fetch_input_tuple(VecAggState *vaggstate)
 		i = 0;
 		while (i < VECTOR_SIZE)
 		{
+			ExecClearTuple(rowslot);
 			(void) tuplesort_gettupleslot(aggstate->sort_in,
 					true, false, rowslot, NULL);
 
@@ -415,6 +427,249 @@ vec_fetch_input_tuple(VecAggState *vaggstate)
 	}
 
 	return slot;
+}
+
+static void
+gamma_hashagg_recompile_expressions(AggState *aggstate, bool minslot, bool nullcheck)
+{
+	AggStatePerPhase phase;
+
+	Assert(aggstate->aggstrategy == AGG_HASHED ||
+		   aggstate->aggstrategy == AGG_MIXED);
+
+	if (aggstate->aggstrategy == AGG_HASHED)
+		phase = &aggstate->phases[0];
+	else						/* AGG_MIXED */
+		phase = &aggstate->phases[1];
+
+	if (phase->evaltrans_cache[0][0] == NULL)
+	{
+		const TupleTableSlotOps *outerops = aggstate->ss.ps.outerops;
+		bool		outerfixed = aggstate->ss.ps.outeropsfixed;
+		bool		dohash = true;
+		bool		dosort = false;
+
+		/*
+		 * If minslot is true, that means we are processing a spilled batch
+		 * (inside agg_refill_hash_table()), and we must not advance the
+		 * sorted grouping sets.
+		 */
+		if (aggstate->aggstrategy == AGG_MIXED && !minslot)
+			dosort = true;
+
+		/* temporarily change the outerops while compiling the expression */
+		if (minslot)
+		{
+			aggstate->ss.ps.outerops = &TTSOpsMinimalTuple;
+			aggstate->ss.ps.outeropsfixed = true;
+		}
+
+		phase->evaltrans_cache[0][0] = VecExecBuildAggTransPerPhase(aggstate, phase,
+														 dosort, dohash,
+														 nullcheck);
+
+		/* change back */
+		aggstate->ss.ps.outerops = outerops;
+		aggstate->ss.ps.outeropsfixed = outerfixed;
+	}
+
+	phase->evaltrans = phase->evaltrans_cache[0][0];
+}
+
+
+static void
+gamma_hash_agg_enter_spill_mode(AggState *aggstate)
+{
+	aggstate->hash_spill_mode = true;
+	gamma_hashagg_recompile_expressions(aggstate, aggstate->table_filled, true);
+
+	if (!aggstate->hash_ever_spilled)
+	{
+		Assert(aggstate->hash_tapeset == NULL);
+		Assert(aggstate->hash_spills == NULL);
+
+		aggstate->hash_ever_spilled = true;
+
+		aggstate->hash_tapeset = LogicalTapeSetCreate(true, NULL, -1);
+
+		aggstate->hash_spills = palloc(sizeof(HashAggSpill) * aggstate->num_hashes);
+
+		for (int setno = 0; setno < aggstate->num_hashes; setno++)
+		{
+			AggStatePerHash perhash = &aggstate->perhash[setno];
+			HashAggSpill *spill = &aggstate->hash_spills[setno];
+
+			hashagg_spill_init(spill, aggstate->hash_tapeset, 0,
+							   perhash->aggnode->numGroups,
+							   aggstate->hashentrysize);
+		}
+	}
+}
+
+
+static void
+gamma_hash_agg_check_limits(AggState *aggstate)
+{
+	uint64		ngroups = aggstate->hash_ngroups_current;
+	Size		meta_mem = MemoryContextMemAllocated(aggstate->hash_metacxt,
+													 true);
+	Size		hashkey_mem = MemoryContextMemAllocated(aggstate->hashcontext->ecxt_per_tuple_memory,
+														true);
+
+	/*
+	 * Don't spill unless there's at least one group in the hash table so we
+	 * can be sure to make progress even in edge cases.
+	 */
+	if (aggstate->hash_ngroups_current > 0 &&
+		(meta_mem + hashkey_mem > aggstate->hash_mem_limit ||
+		 ngroups > aggstate->hash_ngroups_limit))
+	{
+		gamma_hash_agg_enter_spill_mode(aggstate);
+	}
+}
+
+static void
+gamma_initialize_hash_entry(AggState *aggstate, TupleHashTable hashtable,
+					  TupleHashEntry entry)
+{
+	AggStatePerGroup pergroup;
+	int			transno;
+
+	aggstate->hash_ngroups_current++;
+	gamma_hash_agg_check_limits(aggstate);
+
+	/* no need to allocate or initialize per-group state */
+	if (aggstate->numtrans == 0)
+		return;
+
+	pergroup = (AggStatePerGroup)
+		MemoryContextAlloc(hashtable->tablecxt,
+						   sizeof(AggStatePerGroupData) * aggstate->numtrans);
+
+	entry->additional = pergroup;
+
+	/*
+	 * Initialize aggregates for new tuple group, lookup_hash_entries()
+	 * already has selected the relevant grouping set.
+	 */
+	for (transno = 0; transno < aggstate->numtrans; transno++)
+	{
+		AggStatePerTrans pertrans = &aggstate->pertrans[transno];
+		AggStatePerGroup pergroupstate = &pergroup[transno];
+
+		initialize_aggregate(aggstate, pertrans, pergroupstate);
+	}
+}
+
+static bool
+gamma_agg_refill_hash_table(VecAggState *vaggstate)
+{
+	AggState *aggstate = vaggstate->aggstate;
+	HashAggBatch *batch;
+	HashAggSpill spill;
+	bool spill_initialized = false;
+
+	if (aggstate->hash_batches == NIL)
+		return false;
+
+	batch = llast(aggstate->hash_batches);
+	aggstate->hash_batches = list_delete_last(aggstate->hash_batches);
+
+	hash_agg_set_limits(aggstate->hashentrysize, batch->input_card,
+						batch->used_bits, &aggstate->hash_mem_limit,
+						&aggstate->hash_ngroups_limit, NULL);
+
+	MemSet(aggstate->hash_pergroup, 0,
+		   sizeof(AggStatePerGroup) * aggstate->num_hashes);
+
+	ReScanExprContext(aggstate->hashcontext);
+	for (int setno = 0; setno < aggstate->num_hashes; setno++)
+		VecResetTupleHashTable((VecTupleHashTable)aggstate->perhash[setno].hashtable);
+
+	aggstate->hash_ngroups_current = 0;
+
+	Assert(aggstate->current_phase == 0);
+	if (aggstate->phase->aggstrategy == AGG_MIXED)
+	{
+		aggstate->current_phase = 1;
+		aggstate->phase = &aggstate->phases[aggstate->current_phase];
+	}
+
+	select_current_set(aggstate, batch->setno, true);
+
+	gamma_hashagg_recompile_expressions(aggstate, true, true);
+
+	for (;;)
+	{
+		TupleTableSlot *spillslot = aggstate->hash_spill_rslot;
+		TupleTableSlot *vec_spillslot = vaggstate->hash_spill_vec_rslot;
+		MinimalTuple tuple;
+		uint32 hash;
+		MinimalTuple pin_tuples[VECTOR_SIZE];
+
+		int one_batch = 0;
+
+		CHECK_FOR_INTERRUPTS();
+
+		ExecClearTuple(vec_spillslot);
+
+		while(one_batch < VECTOR_SIZE)
+		{
+			tuple = hashagg_batch_read(batch, &hash);
+			if (tuple == NULL)
+				break;
+
+			pin_tuples[one_batch] = tuple;
+
+			ExecStoreMinimalTuple(tuple, spillslot, false);
+			slot_getallattrs(spillslot);
+			tts_vector_slot_fill_vector(vec_spillslot, spillslot, one_batch);
+			one_batch++;
+		}
+		
+		if (tuple == NULL && one_batch == 0)
+			break;
+
+		aggstate->tmpcontext->ecxt_outertuple = vec_spillslot;
+
+		gamma_vec_refill_hash_entries(vaggstate, batch, &spill, &spill_initialized);
+		gamma_vec_hashed_advance_aggregates(vaggstate);
+
+		pg_read_barrier();
+
+		while (one_batch > 0)
+		{
+			one_batch--;
+			pfree(pin_tuples[one_batch]);
+		}
+
+		ResetExprContext(aggstate->tmpcontext);
+	}
+
+	LogicalTapeClose(batch->input_tape);
+
+	/* change back to phase 0 */
+	aggstate->current_phase = 0;
+	aggstate->phase = &aggstate->phases[aggstate->current_phase];
+
+	if (spill_initialized)
+	{
+		hashagg_spill_finish(aggstate, &spill, batch->setno);
+		hash_agg_update_metrics(aggstate, true, spill.npartitions);
+	}
+	else
+		hash_agg_update_metrics(aggstate, true, 0);
+
+	aggstate->hash_spill_mode = false;
+
+	/* prepare to walk the first hash table */
+	select_current_set(aggstate, batch->setno, true);
+	VecResetTupleHashIterator(aggstate->perhash[batch->setno].hashtable,
+						  (vec_tuplehash_iterator *)&aggstate->perhash[batch->setno].hashiter);
+
+	pfree(batch);
+
+	return true;
 }
 
 static TupleTableSlot *
@@ -844,7 +1099,7 @@ vec_agg_retrieve_hash_table(VecAggState *vaggstate)
 		result = vec_agg_retrieve_hash_table_in_memory(vaggstate);
 		if (result == NULL)
 		{
-			if (!agg_refill_hash_table(aggstate))
+			if (!gamma_agg_refill_hash_table(vaggstate))
 			{
 				aggstate->agg_done = true;
 				break;
@@ -862,7 +1117,6 @@ vec_agg_retrieve_hash_table_in_memory(VecAggState *vaggstate)
 	AggStatePerAgg peragg;
 	AggStatePerGroup pergroup;
 	TupleHashEntryData *entry;
-	TupleTableSlot *firstSlot;
 	TupleTableSlot *result;
 	AggStatePerHash perhash;
 	VecTupleHashEntry ventry;
@@ -876,7 +1130,6 @@ vec_agg_retrieve_hash_table_in_memory(VecAggState *vaggstate)
 	 */
 	econtext = aggstate->ss.ps.ps_ExprContext;
 	peragg = aggstate->peragg;
-	firstSlot = aggstate->ss.ss_ScanTupleSlot;
 
 	/*
 	 * Note that perhash (and therefore anything accessed through it) can
@@ -890,9 +1143,6 @@ vec_agg_retrieve_hash_table_in_memory(VecAggState *vaggstate)
 	 */
 	for (;;)
 	{
-		TupleTableSlot *hashslot = perhash->hashslot;
-		int			i;
-
 		CHECK_FOR_INTERRUPTS();
 
 		/*
@@ -908,10 +1158,6 @@ vec_agg_retrieve_hash_table_in_memory(VecAggState *vaggstate)
 
 			if (nextset < aggstate->num_hashes)
 			{
-				/*
-				 * Switch to next grouping set, reinitialize, and restart the
-				 * loop.
-				 */
 				select_current_set(aggstate, nextset, true);
 
 				perhash = &aggstate->perhash[aggstate->current_set];
@@ -927,43 +1173,11 @@ vec_agg_retrieve_hash_table_in_memory(VecAggState *vaggstate)
 			}
 		}
 
-		/*
-		 * Clear the per-output-tuple context for each group
-		 *
-		 * We intentionally don't use ReScanExprContext here; if any aggs have
-		 * registered shutdown callbacks, they mustn't be called yet, since we
-		 * might not be done with that agg.
-		 */
 		ResetExprContext(econtext);
-
-		/*
-		 * Transform representative tuple back into one with the right
-		 * columns.
-		 */
-		//ExecStoreMinimalTuple(entry->firstTuple, hashslot, false);
-		//slot_getallattrs(hashslot);
-		hashslot = ventry->first_slot;
-
-		ExecClearTuple(firstSlot);
-		memset(firstSlot->tts_isnull, true,
-			   firstSlot->tts_tupleDescriptor->natts * sizeof(bool));
-
-		for (i = 0; i < perhash->numhashGrpCols; i++)
-		{
-			int			varNumber = perhash->hashGrpColIdxInput[i] - 1;
-
-			firstSlot->tts_values[varNumber] = hashslot->tts_values[i];
-			firstSlot->tts_isnull[varNumber] = hashslot->tts_isnull[i];
-		}
-		ExecStoreVirtualTuple(firstSlot);
 
 		pergroup = (AggStatePerGroup) entry->additional;
 
-		/*
-		 * Use the representative input tuple for any references to
-		 * non-aggregated input columns in the qual and tlist.
-		 */
-		econtext->ecxt_outertuple = firstSlot;
+		econtext->ecxt_outertuple = ventry->first_slot;
 
 		prepare_projection_slot(aggstate,
 								econtext->ecxt_outertuple,
@@ -1158,16 +1372,19 @@ gamma_vec_initialize_hashentry(VecAggState *vaggstate, VecTupleHashEntry entry,
 }
 
 static void
-gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
+gamma_vec_refill_hash_entries(VecAggState *vaggstate,
+								HashAggBatch *batch,  HashAggSpill *spill,
+								bool *init_spill)
 {
 	int32 i;
 	AggState *aggstate = vaggstate->aggstate;
-	//AggStatePerGroup *pergroup = aggstate->hash_pergroup;
+	AggStatePerGroup *pergroup = aggstate->hash_pergroup;
 	TupleTableSlot *outerslot = aggstate->tmpcontext->ecxt_outertuple;
 	VectorTupleSlot *vouterslot = (VectorTupleSlot *) outerslot;
 	int32 setno = aggstate->current_set;
 	int32 hashkeys[VECTOR_SIZE];
 	VecTupleHashEntry *entries = (VecTupleHashEntry *)vaggstate->entries;
+	LogicalTapeSet *tapeset = aggstate->hash_tapeset;
 
 	short row_indexarr[VECTOR_SIZE];
 	
@@ -1176,7 +1393,6 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 	VecTupleHashTable vhashtable = (VecTupleHashTable) hashtable;
 
 	vaggstate->entries_dim = vouterslot->dim;
-	vaggstate->spill_dim = 0;
 
 	row_indexarr[0] = 0;
 	row_indexarr[1] = -1;
@@ -1207,7 +1423,7 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		{
 			if (isnew)
 			{
-				initialize_hash_entry(aggstate, hashtable,
+				gamma_initialize_hash_entry(aggstate, hashtable,
 											(TupleHashEntry) entries[i]);
 				gamma_vec_initialize_hashentry(vaggstate, entries[i], outerslot, i);
 			}
@@ -1216,12 +1432,9 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		}
 	}
 
-#if 0
-	/* batch process spill tuples */
+	/* spill tuples */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
-		int col;
-		HashAggSpill *spill = &aggstate->hash_spills[setno];
 		TupleTableSlot *slot = aggstate->tmpcontext->ecxt_outertuple;
 		TupleTableSlot *rowslot = vaggstate->outer_tuple_slot;
 
@@ -1231,15 +1444,119 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		if (entries[i] != NULL)
 			continue;
 
-		//TODO:batch write ? move to same level with advance_agg?
+		//TODO:batch write
+		ExecClearTuple(rowslot);
+		tts_vector_slot_copy_one_row(rowslot, slot, i);
+		ExecStoreVirtualTuple(rowslot);
 
-		for (col = 0; col < slot->tts_tupleDescriptor->natts; col++)
+		if (!*init_spill)
 		{
-			vdatum *vec_value = (vdatum *)DatumGetPointer(slot->tts_values[col]);
-			rowslot->tts_values[col] = VDATUM_DATUM(vec_value, i);
-			rowslot->tts_isnull[col] = VDATUM_ISNULL(vec_value, i);
+			hashagg_spill_init(spill, tapeset, batch->used_bits,
+					batch->input_card, aggstate->hashentrysize);
+			*init_spill = true;
 		}
 
+		hashagg_spill_tuple(aggstate, spill, rowslot, hashkeys[i]);
+		pergroup[setno] = NULL;
+	}
+
+	/* batch tuples belonging to the same entry together */
+	for (i = 0; i < vouterslot->dim; i++)
+	{
+		if (entries[i] != NULL)
+		{
+			VecTupleHashEntry entry = entries[i];
+			int indexarr_dim;
+			short *indexarr = entry->indexarr;
+
+			indexarr[entry->indexarr_dim++] = i;
+			indexarr_dim = entry->indexarr_dim;
+			if (indexarr_dim < VECTOR_SIZE)
+				indexarr[indexarr_dim] = -1; /* TODO: new loop? */
+
+			if (indexarr_dim > 1)
+				entries[i] = NULL;
+		}
+	}
+}
+
+static void
+gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
+{
+	int32 i;
+	AggState *aggstate = vaggstate->aggstate;
+	AggStatePerGroup *pergroup = aggstate->hash_pergroup;
+	TupleTableSlot *outerslot = aggstate->tmpcontext->ecxt_outertuple;
+	VectorTupleSlot *vouterslot = (VectorTupleSlot *) outerslot;
+	int32 setno = aggstate->current_set;
+	int32 hashkeys[VECTOR_SIZE];
+	VecTupleHashEntry *entries = (VecTupleHashEntry *)vaggstate->entries;
+
+	short row_indexarr[VECTOR_SIZE];
+	
+	AggStatePerHash perhash = &aggstate->perhash[setno];
+	TupleHashTable hashtable = perhash->hashtable;
+	VecTupleHashTable vhashtable = (VecTupleHashTable) hashtable;
+
+	vaggstate->entries_dim = vouterslot->dim;
+
+	row_indexarr[0] = 0;
+	row_indexarr[1] = -1;
+	vouterslot->row_indexarr = (short *) row_indexarr;
+
+	gamma_vec_hashtable_grow(aggstate, setno, VECTOR_SIZE); 
+	gamma_vec_calc_hash_value(vaggstate, setno, hashkeys);
+
+	for (i = 0; i < vouterslot->dim; i++)
+	{
+		bool isnew = false;
+		bool *p_isnew;
+
+		if (vouterslot->skip[i])
+		{
+			entries[i] = NULL;
+			continue;
+		}
+
+		row_indexarr[0] = i;
+
+		/* if hash table already spilled, don't create new entries */
+		p_isnew = aggstate->hash_spill_mode ? NULL : &isnew;
+		entries[i] = VecLookupTupleHashEntryHash(vhashtable, outerslot,
+				p_isnew, hashkeys[i]);
+
+		if (entries[i] != NULL)
+		{
+			if (isnew)
+			{
+				gamma_initialize_hash_entry(aggstate, hashtable,
+											(TupleHashEntry) entries[i]);
+				gamma_vec_initialize_hashentry(vaggstate, entries[i], outerslot, i);
+			}
+
+			gamma_vec_reset_entry_batch(vaggstate, entries[i], i);
+		}
+	}
+
+	/* spill tuples */
+	for (i = 0; i < vouterslot->dim; i++)
+	{
+		HashAggSpill *spill = &aggstate->hash_spills[setno];
+		TupleTableSlot *slot = aggstate->tmpcontext->ecxt_outertuple;
+		TupleTableSlot *rowslot = vaggstate->outer_tuple_slot;
+
+		if (spill == NULL)
+			break;
+
+		if (vouterslot->skip[i])
+			continue;
+
+		if (entries[i] != NULL)
+			continue;
+
+		//TODO:batch write
+		ExecClearTuple(rowslot);
+		tts_vector_slot_copy_one_row(rowslot, slot, i);
 		ExecStoreVirtualTuple(rowslot);
 
 		if (spill->partitions == NULL)
@@ -1250,9 +1567,8 @@ gamma_vec_lookup_hash_entries(VecAggState *vaggstate)
 		hashagg_spill_tuple(aggstate, spill, rowslot, hashkeys[i]);
 		pergroup[setno] = NULL;
 	}
-#endif
 
-	/* batch tuples belonging to the same entry together*/
+	/* batch tuples belonging to the same entry together */
 	for (i = 0; i < vouterslot->dim; i++)
 	{
 		if (entries[i] != NULL)

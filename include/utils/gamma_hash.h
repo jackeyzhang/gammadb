@@ -187,7 +187,9 @@ typedef struct SH_TYPE
 	uint32 datasize;
 	uint32 dataoffset;
 	char *entries;
-	List *old_entries;
+	char **old_entries;
+	uint32 old_entries_size;
+	uint32 old_entries_count;
 	gamma_hash_bucket *buckets;
 
 #ifndef SH_RAW_ALLOCATOR
@@ -478,7 +480,11 @@ SH_CREATE(MemoryContext ctx, uint32 nelements, void *private_data)
 	tb->datacount = tb->size;
 	tb->dataoffset = 0;
 	tb->datasize = sizeof(SH_ELEMENT_TYPE) * tb->size;
-	tb->old_entries = NULL;
+
+#define GAMMA_HASH_OLD_ENTRIES_ARRAY 32
+	tb->old_entries_size = GAMMA_HASH_OLD_ENTRIES_ARRAY;
+	tb->old_entries_count = 0;
+	tb->old_entries = (char **) SH_ALLOCATE(tb, sizeof(char *) * tb->old_entries_size);
 
 	return tb;
 }
@@ -487,15 +493,20 @@ SH_CREATE(MemoryContext ctx, uint32 nelements, void *private_data)
 SH_SCOPE void
 SH_DESTROY(SH_TYPE * tb)
 {
-	ListCell *lc;
+	int i;
 	SH_FREE(tb, tb->buckets);
 	SH_FREE(tb, tb->entries);
 
-	foreach(lc, tb->old_entries)
+	for (i = 0; i < tb->old_entries_count; i++)
 	{
-		char *p = (char *) lfirst(lc);
+		char *p = tb->old_entries[i];
 		SH_FREE(tb, p);
 	}
+	
+	SH_FREE(tb, tb->old_entries);
+	tb->old_entries = NULL;
+	tb->old_entries_size = 0;
+	tb->old_entries_count = 0;
 
 	pfree(tb);
 }
@@ -504,15 +515,22 @@ SH_DESTROY(SH_TYPE * tb)
 SH_SCOPE void
 SH_RESET(SH_TYPE * tb)
 {
-	ListCell *lc;
+	int i;
 	memset(tb->buckets, 0, sizeof(gamma_hash_bucket) * tb->size);
 	memset(tb->entries, 0, tb->datasize);
 
-	foreach(lc, tb->old_entries)
+	for (i = 0; i < tb->old_entries_count; i++)
 	{
-		char *p = (char *) lfirst(lc);
+		char *p = tb->old_entries[i];
 		SH_FREE(tb, p);
 	}
+	
+#define GAMMA_HASH_OLD_ENTRIES_ARRAY 32
+	SH_FREE(tb, tb->old_entries);
+	tb->old_entries_size = GAMMA_HASH_OLD_ENTRIES_ARRAY;
+	tb->old_entries_count = 0;
+	tb->old_entries = (char **) SH_ALLOCATE(tb, sizeof(char *) * tb->old_entries_size);
+
 	tb->dataoffset = 0;
 	tb->members = 0;
 }
@@ -637,7 +655,19 @@ gamma_hash_data_grow(SH_TYPE *tb)
 	if (likely(tb->datasize - tb->dataoffset > sizeof(SH_ELEMENT_TYPE)))
 		return;
 
-	tb->old_entries = lappend(tb->old_entries, tb->entries);
+	if (unlikely(tb->old_entries_count >= tb->old_entries_size))
+	{
+		char **old_entries =
+			(char **) SH_ALLOCATE(tb, sizeof(char *) * tb->old_entries_size * 2);
+		memcpy(old_entries, tb->old_entries, sizeof(char *) * tb->old_entries_count);
+		tb->old_entries_size = tb->old_entries_size * 2;		
+		SH_FREE(tb, tb->old_entries);
+		tb->old_entries = old_entries;
+	}
+
+	tb->old_entries[tb->old_entries_count] = tb->entries;
+	tb->old_entries_count++;
+
 	tb->entries =
 		(char *) SH_ALLOCATE(tb, sizeof(SH_ELEMENT_TYPE) * (tb->size - tb->datacount));
 	tb->dataoffset = 0;

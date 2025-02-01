@@ -176,9 +176,6 @@ vec_devector_fetch_row(VecDevectorState *ubs)
 	TupleTableSlot	   *slot;
 	TupleTableSlot		*baseslot;
 	int					iter;
-	int					natts;
-	int					i;
-
 	
 	slot = ubs->css.ss.ps.ps_ResultTupleSlot;
 	vslot = (VectorTupleSlot *)ubs->ps_ResultVTupleSlot;
@@ -194,23 +191,7 @@ vec_devector_fetch_row(VecDevectorState *ubs)
 		return NULL;
 
 	ExecClearTuple(slot);
-	natts = slot->tts_tupleDescriptor->natts;
-	for(i = 0; i < natts; i++)
-	{
-		Datum value = baseslot->tts_values[i];
-
-		if (VDATUM_ISNULL((vdatum *)value, iter))
-		{
-			slot->tts_values[i] = (Datum) 0;
-			slot->tts_isnull[i] = true;
-		}
-		else
-		{
-			slot->tts_values[i] = VDATUM_DATUM((vdatum*)value, iter);
-			slot->tts_isnull[i] = false;
-		}
-	}
-
+	tts_vector_slot_copy_one_row(slot, baseslot, iter);
 	ubs->iter = ++iter;
 	return ExecStoreVirtualTuple(slot);
 }

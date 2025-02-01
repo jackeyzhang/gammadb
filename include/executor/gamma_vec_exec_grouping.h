@@ -115,6 +115,8 @@ extern VecTupleHashTable VecBuildTupleHashTable(PlanState *parent,
 
 extern void VecResetTupleHashTable(VecTupleHashTable hashtable);
 extern void VecExecBuildAggTrans(AggState *aggstate, bool nullcheck);
+extern ExprState * VecExecBuildAggTransPerPhase(AggState *aggstate, AggStatePerPhase phase,
+				  bool doSort, bool doHash, bool nullcheck);
 extern VecTupleHashEntry VecLookupTupleHashEntryHash(VecTupleHashTable hashtable,
 							TupleTableSlot *slot, bool *isnew, uint32 hash);
 extern void clear_nonvec_hash_tables(AggState *aggstate);
@@ -131,5 +133,4 @@ extern bool gamma_vec_grouping_row_match(AggState *aggstate, int numCols,
 						 const TupleTableSlot *rowslot,
 						 const TupleTableSlot *vecslot, int cur_row);
 
-extern ExprState * gamma_vec_init_interp_expr_proc(void);
 #endif /* GAMMA_VEC_EXEC_GROUPING_H */

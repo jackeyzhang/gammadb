@@ -108,7 +108,9 @@ CREATE TABLE hits
     CLID INTEGER NOT NULL
     --PRIMARY KEY (CounterID, EventDate, UserID, EventTime, WatchID)
 ) using gamma;
+set gammadb_copy_to_cvtable to off;
 COPY hits FROM stdin with delimiter ',' csv;
+vacuum hits;
 analyze hits;
 set work_mem = '100MB';
 set hash_mem_multiplier = 50;
@@ -438,8 +440,8 @@ SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase 
               2 | ведомоскве варфейс              | 20
              13 | растика конд каторией в чебурек | 16
               3 | ведомосквы вместу               | 15
-              2 | коптимиквиды юристический       | 14
               2 | авторий                         | 14
+              2 | коптимиквиды юристический       | 14
               2 | ведомосква                      | 13
 (10 rows)
 
@@ -496,7 +498,7 @@ SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase OR
  -5808690843284415970 |              |   104
  -5813304333699498523 |              |   102
  -4975559395456095104 |              |   102
- -7443496593543088467 |              |   100
+ -8229872269465361314 |              |   100
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;
@@ -511,18 +513,18 @@ EXPLAIN (COSTS OFF) SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY Use
 (6 rows)
 
 SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;
-        userid        |                 searchphrase                 | count 
-----------------------+----------------------------------------------+-------
- -2461439046089301801 |                                              |     6
- -6506068533274499230 |                                              |     1
- -5675255506360643607 |                                              |     2
- -7824465505278023469 | покеты рецепт засня                          |     2
- -5258064642599368331 | ирина матвеевске на шторки рецепт            |     2
- -6532476010365993060 |                                              |    38
- -8604387305256059384 | авторіа юао море она картирув казания начина |     3
- -5359878448455567454 | 95 квартир                                   |     2
- -8679592227224891972 |                                              |     2
- -5708828731465580418 | артук в в россошан                           |     2
+        userid        |           searchphrase            | count 
+----------------------+-----------------------------------+-------
+ -2461439046089301801 |                                   |     6
+ -6308439691662481269 | ведомосквы вы из                  |     4
+ -6506068533274499230 |                                   |     1
+ -5675255506360643607 |                                   |     2
+ -6473426974622653098 | опа подоления                     |     2
+ -5095272086441592590 |                                   |    33
+ -6469826283249576776 | коптимиквиды юристический         |     8
+ -7824465505278023469 | покеты рецепт засня               |     2
+ -7548887596633493650 | активный диаспечательство         |     2
+ -5258064642599368331 | ирина матвеевске на шторки рецепт |     2
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
@@ -545,14 +547,14 @@ SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM 
 ----------------------+----+--------------+-------
  -7918574344944952583 | 26 |              |    24
  -9154375582268094750 |  1 |              |    20
- -8455721461950319637 | 21 |              |    16
  -7725127544842036118 | 21 |              |    16
+ -8455721461950319637 | 21 |              |    16
  -8284294157038592779 | 11 |              |    16
+ -7018910098174567459 | 57 |              |    14
+ -9158995094684353950 | 12 |              |    14
+ -7018910098174567459 | 56 |              |    14
  -7918574344944952583 |  9 |              |    14
  -7904263253391067902 | 34 |              |    14
- -7018910098174567459 | 57 |              |    14
- -7018910098174567459 | 56 |              |    14
- -9158995094684353950 | 12 |              |    14
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID FROM hits WHERE UserID = 435090932899640449;
@@ -770,16 +772,13 @@ SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k, AV
 (0 rows)
 
 EXPLAIN (COSTS OFF) SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 2), SUM(ResolutionWidth + 3), SUM(ResolutionWidth + 4), SUM(ResolutionWidth + 5), SUM(ResolutionWidth + 6), SUM(ResolutionWidth + 7), SUM(ResolutionWidth + 8), SUM(ResolutionWidth + 9), SUM(ResolutionWidth + 10), SUM(ResolutionWidth + 11), SUM(ResolutionWidth + 12), SUM(ResolutionWidth + 13), SUM(ResolutionWidth + 14), SUM(ResolutionWidth + 15), SUM(ResolutionWidth + 16), SUM(ResolutionWidth + 17), SUM(ResolutionWidth + 18), SUM(ResolutionWidth + 19), SUM(ResolutionWidth + 20), SUM(ResolutionWidth + 21), SUM(ResolutionWidth + 22), SUM(ResolutionWidth + 23), SUM(ResolutionWidth + 24), SUM(ResolutionWidth + 25), SUM(ResolutionWidth + 26), SUM(ResolutionWidth + 27), SUM(ResolutionWidth + 28), SUM(ResolutionWidth + 29), SUM(ResolutionWidth + 30), SUM(ResolutionWidth + 31), SUM(ResolutionWidth + 32), SUM(ResolutionWidth + 33), SUM(ResolutionWidth + 34), SUM(ResolutionWidth + 35), SUM(ResolutionWidth + 36), SUM(ResolutionWidth + 37), SUM(ResolutionWidth + 38), SUM(ResolutionWidth + 39), SUM(ResolutionWidth + 40), SUM(ResolutionWidth + 41), SUM(ResolutionWidth + 42), SUM(ResolutionWidth + 43), SUM(ResolutionWidth + 44), SUM(ResolutionWidth + 45), SUM(ResolutionWidth + 46), SUM(ResolutionWidth + 47), SUM(ResolutionWidth + 48), SUM(ResolutionWidth + 49), SUM(ResolutionWidth + 50), SUM(ResolutionWidth + 51), SUM(ResolutionWidth + 52), SUM(ResolutionWidth + 53), SUM(ResolutionWidth + 54), SUM(ResolutionWidth + 55), SUM(ResolutionWidth + 56), SUM(ResolutionWidth + 57), SUM(ResolutionWidth + 58), SUM(ResolutionWidth + 59), SUM(ResolutionWidth + 60), SUM(ResolutionWidth + 61), SUM(ResolutionWidth + 62), SUM(ResolutionWidth + 63), SUM(ResolutionWidth + 64), SUM(ResolutionWidth + 65), SUM(ResolutionWidth + 66), SUM(ResolutionWidth + 67), SUM(ResolutionWidth + 68), SUM(ResolutionWidth + 69), SUM(ResolutionWidth + 70), SUM(ResolutionWidth + 71), SUM(ResolutionWidth + 72), SUM(ResolutionWidth + 73), SUM(ResolutionWidth + 74), SUM(ResolutionWidth + 75), SUM(ResolutionWidth + 76), SUM(ResolutionWidth + 77), SUM(ResolutionWidth + 78), SUM(ResolutionWidth + 79), SUM(ResolutionWidth + 80), SUM(ResolutionWidth + 81), SUM(ResolutionWidth + 82), SUM(ResolutionWidth + 83), SUM(ResolutionWidth + 84), SUM(ResolutionWidth + 85), SUM(ResolutionWidth + 86), SUM(ResolutionWidth + 87), SUM(ResolutionWidth + 88), SUM(ResolutionWidth + 89) FROM hits;
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Finalize Aggregate
-   ->  Gather
-         Workers Planned: 1
-         ->  Custom Scan (gamma_vec_agg)
-               ->  Partial Aggregate
-                     ->  Parallel Custom Scan (gamma_vec_tablescan)
-                           ->  Parallel Seq Scan on hits
-(7 rows)
+                  QUERY PLAN                   
+-----------------------------------------------
+ Custom Scan (gamma_vec_agg)
+   ->  Aggregate
+         ->  Custom Scan (gamma_vec_tablescan)
+               ->  Seq Scan on hits
+(4 rows)
 
 SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 2), SUM(ResolutionWidth + 3), SUM(ResolutionWidth + 4), SUM(ResolutionWidth + 5), SUM(ResolutionWidth + 6), SUM(ResolutionWidth + 7), SUM(ResolutionWidth + 8), SUM(ResolutionWidth + 9), SUM(ResolutionWidth + 10), SUM(ResolutionWidth + 11), SUM(ResolutionWidth + 12), SUM(ResolutionWidth + 13), SUM(ResolutionWidth + 14), SUM(ResolutionWidth + 15), SUM(ResolutionWidth + 16), SUM(ResolutionWidth + 17), SUM(ResolutionWidth + 18), SUM(ResolutionWidth + 19), SUM(ResolutionWidth + 20), SUM(ResolutionWidth + 21), SUM(ResolutionWidth + 22), SUM(ResolutionWidth + 23), SUM(ResolutionWidth + 24), SUM(ResolutionWidth + 25), SUM(ResolutionWidth + 26), SUM(ResolutionWidth + 27), SUM(ResolutionWidth + 28), SUM(ResolutionWidth + 29), SUM(ResolutionWidth + 30), SUM(ResolutionWidth + 31), SUM(ResolutionWidth + 32), SUM(ResolutionWidth + 33), SUM(ResolutionWidth + 34), SUM(ResolutionWidth + 35), SUM(ResolutionWidth + 36), SUM(ResolutionWidth + 37), SUM(ResolutionWidth + 38), SUM(ResolutionWidth + 39), SUM(ResolutionWidth + 40), SUM(ResolutionWidth + 41), SUM(ResolutionWidth + 42), SUM(ResolutionWidth + 43), SUM(ResolutionWidth + 44), SUM(ResolutionWidth + 45), SUM(ResolutionWidth + 46), SUM(ResolutionWidth + 47), SUM(ResolutionWidth + 48), SUM(ResolutionWidth + 49), SUM(ResolutionWidth + 50), SUM(ResolutionWidth + 51), SUM(ResolutionWidth + 52), SUM(ResolutionWidth + 53), SUM(ResolutionWidth + 54), SUM(ResolutionWidth + 55), SUM(ResolutionWidth + 56), SUM(ResolutionWidth + 57), SUM(ResolutionWidth + 58), SUM(ResolutionWidth + 59), SUM(ResolutionWidth + 60), SUM(ResolutionWidth + 61), SUM(ResolutionWidth + 62), SUM(ResolutionWidth + 63), SUM(ResolutionWidth + 64), SUM(ResolutionWidth + 65), SUM(ResolutionWidth + 66), SUM(ResolutionWidth + 67), SUM(ResolutionWidth + 68), SUM(ResolutionWidth + 69), SUM(ResolutionWidth + 70), SUM(ResolutionWidth + 71), SUM(ResolutionWidth + 72), SUM(ResolutionWidth + 73), SUM(ResolutionWidth + 74), SUM(ResolutionWidth + 75), SUM(ResolutionWidth + 76), SUM(ResolutionWidth + 77), SUM(ResolutionWidth + 78), SUM(ResolutionWidth + 79), SUM(ResolutionWidth + 80), SUM(ResolutionWidth + 81), SUM(ResolutionWidth + 82), SUM(ResolutionWidth + 83), SUM(ResolutionWidth + 84), SUM(ResolutionWidth + 85), SUM(ResolutionWidth + 86), SUM(ResolutionWidth + 87), SUM(ResolutionWidth + 88), SUM(ResolutionWidth + 89) FROM hits;
    sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    |   sum    
@@ -810,10 +809,10 @@ SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWi
               2 |  1140309473 | 12 |   6 | 1638.0000000000000000
               2 |   743072690 | 12 |   6 | 1368.0000000000000000
               2 | -1555581670 | 12 |   6 | 1638.0000000000000000
+              2 |   403806690 | 10 |   5 | 1828.0000000000000000
               2 |  1515936442 | 10 |   5 | 1917.0000000000000000
-              2 | -1300828471 | 10 |   5 | 1396.0000000000000000
+              2 |  1449805590 | 10 |   6 | 1638.0000000000000000
               2 |  1799458087 | 10 |   5 | 1304.0000000000000000
-              2 |  1943715871 | 10 |   5 | 1638.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
@@ -862,14 +861,14 @@ SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FR
        watchid       |  clientip   | c | sum |          avg          
 ---------------------+-------------+---+-----+-----------------------
  8098360327458671085 |  1021792157 | 1 |   0 | 1917.0000000000000000
+ 5037853531586810541 | -1298635519 | 1 |   1 | 1917.0000000000000000
+ 5726316777289920960 | -1170323632 | 1 |   0 | 1996.0000000000000000
  8974357120245289287 |  1404486817 | 1 |   1 | 1828.0000000000000000
  9057243636294547749 |  1361113944 | 1 |   1 | 1638.0000000000000000
  6254117564058232681 | -1258870999 | 1 |   0 | 1917.0000000000000000
  8421919248487172933 |  1327608256 | 1 |   1 | 1368.0000000000000000
- 6646193180796909593 |  1921828993 | 1 |   0 |  339.0000000000000000
- 6531309563837464406 | -1972351289 | 1 |   0 |  582.0000000000000000
- 4995451601201582389 |  1827516327 | 1 |   1 | 1917.0000000000000000
- 6191842844442845803 | -1866747362 | 1 |   1 | 1828.0000000000000000
+ 8637078250847531667 |   882096662 | 1 |   0 | 1638.0000000000000000
+ 5052966941223771797 |  2017446057 | 1 |   1 | 1638.0000000000000000
  5342628315659479986 |  1342243722 | 1 |   1 | 1638.0000000000000000
 (10 rows)
 
@@ -1123,19 +1122,16 @@ SELECT count(*) from hits;
 (1 row)
 
 EXPLAIN (COSTS OFF) SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
-                                         QUERY PLAN                                          
----------------------------------------------------------------------------------------------
- Finalize Aggregate
-   ->  Gather
-         Workers Planned: 7
-         ->  Custom Scan (gamma_vec_agg)
-               ->  Partial Aggregate
-                     ->  Custom Scan (gamma_vec_result)
-                           ->  Result
-                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                       ->  Parallel Seq Scan on hits
-                                             Filter: (advengineid OPERATOR(pg_catalog.<>) 0)
-(10 rows)
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Custom Scan (gamma_vec_agg)
+   ->  Aggregate
+         ->  Custom Scan (gamma_vec_result)
+               ->  Result
+                     ->  Custom Scan (gamma_vec_tablescan)
+                           ->  Seq Scan on hits
+                                 Filter: (advengineid OPERATOR(pg_catalog.<>) 0)
+(7 rows)
 
 SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
  count 
@@ -1465,8 +1461,8 @@ SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase 
               2 | ведомоскве варфейс              | 20
              13 | растика конд каторией в чебурек | 16
               3 | ведомосквы вместу               | 15
-              2 | коптимиквиды юристический       | 14
               2 | авторий                         | 14
+              2 | коптимиквиды юристический       | 14
               2 | ведомосква                      | 13
 (10 rows)
 
@@ -1567,23 +1563,21 @@ SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LI
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
-                                            QUERY PLAN                                             
----------------------------------------------------------------------------------------------------
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
-         ->  Finalize HashAggregate
-               Group Key: userid, (EXTRACT(minute FROM eventtime)), searchphrase
+         ->  HashAggregate
+               Group Key: userid, (vextract_time('minute'::text, (EXTRACT(minute FROM eventtime)))), searchphrase
                ->  Gather
                      Workers Planned: 7
-                     ->  Custom Scan (gamma_vec_agg)
-                           ->  Partial HashAggregate
-                                 Group Key: userid, (EXTRACT(minute FROM eventtime)), searchphrase
-                                 ->  Custom Scan (gamma_vec_result)
-                                       ->  Result
-                                             ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                                   ->  Parallel Seq Scan on hits
-(14 rows)
+                     ->  Custom Scan (gamma_vec_devector)
+                           ->  Custom Scan (gamma_vec_result)
+                                 ->  Result
+                                       ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                             ->  Parallel Seq Scan on hits
+(12 rows)
 
 SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
         userid        | m  | searchphrase | count 
@@ -1854,55 +1848,51 @@ SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 2),
 (1 row)
 
 EXPLAIN (COSTS OFF) SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10;
-                                             QUERY PLAN                                              
------------------------------------------------------------------------------------------------------
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
-         ->  Finalize HashAggregate
+         ->  HashAggregate
                Group Key: searchengineid, clientip
                ->  Gather
                      Workers Planned: 7
-                     ->  Custom Scan (gamma_vec_agg)
-                           ->  Partial HashAggregate
-                                 Group Key: searchengineid, clientip
-                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                       ->  Parallel Seq Scan on hits
-                                             Filter: (searchphrase OPERATOR(pg_catalog.<>) ''::text)
-(13 rows)
+                     ->  Parallel Custom Scan (gamma_vec_devector)
+                           ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                 ->  Parallel Seq Scan on hits
+                                       Filter: (searchphrase OPERATOR(pg_catalog.<>) ''::text)
+(11 rows)
 
 SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10;
  searchengineid |  clientip   | c  | sum |          avg          
 ----------------+-------------+----+-----+-----------------------
-              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
              13 |  -673500741 | 20 |  12 | 1638.0000000000000000
+              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
               2 |  -125068408 | 14 |   7 | 1638.0000000000000000
-              2 | -1555581670 | 12 |   6 | 1638.0000000000000000
-              2 |  1140309473 | 12 |   6 | 1638.0000000000000000
               2 |   743072690 | 12 |   6 | 1368.0000000000000000
-              2 |  1943715871 | 10 |   5 | 1638.0000000000000000
-              2 |  1799458087 | 10 |   5 | 1304.0000000000000000
-              2 |   403806690 | 10 |   5 | 1828.0000000000000000
+              2 |  1140309473 | 12 |   6 | 1638.0000000000000000
+              2 | -1555581670 | 12 |   6 | 1638.0000000000000000
+              2 | -1300828471 | 10 |   5 | 1396.0000000000000000
               2 |  -181568119 | 10 |   5 | 1996.0000000000000000
+              2 |  1943715871 | 10 |   5 | 1638.0000000000000000
+              2 |  1515936442 | 10 |   5 | 1917.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
-                                             QUERY PLAN                                              
------------------------------------------------------------------------------------------------------
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
-         ->  Finalize HashAggregate
+         ->  HashAggregate
                Group Key: watchid, clientip
                ->  Gather
                      Workers Planned: 7
-                     ->  Custom Scan (gamma_vec_agg)
-                           ->  Partial HashAggregate
-                                 Group Key: watchid, clientip
-                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                       ->  Parallel Seq Scan on hits
-                                             Filter: (searchphrase OPERATOR(pg_catalog.<>) ''::text)
-(13 rows)
+                     ->  Parallel Custom Scan (gamma_vec_devector)
+                           ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                 ->  Parallel Seq Scan on hits
+                                       Filter: (searchphrase OPERATOR(pg_catalog.<>) ''::text)
+(11 rows)
 
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip  | c | sum |          avg          
@@ -1920,35 +1910,33 @@ SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FR
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
-                                   QUERY PLAN                                   
---------------------------------------------------------------------------------
+                                QUERY PLAN                                
+--------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
-         ->  Finalize HashAggregate
+         ->  HashAggregate
                Group Key: watchid, clientip
                ->  Gather
                      Workers Planned: 7
-                     ->  Custom Scan (gamma_vec_agg)
-                           ->  Partial HashAggregate
-                                 Group Key: watchid, clientip
-                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                       ->  Parallel Seq Scan on hits
-(12 rows)
+                     ->  Parallel Custom Scan (gamma_vec_devector)
+                           ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                 ->  Parallel Seq Scan on hits
+(10 rows)
 
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip   | c | sum |          avg           
 ---------------------+-------------+---+-----+------------------------
- 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
+ 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
  5206346422301499756 | -1216690514 | 1 |   0 | 0.00000000000000000000
- 4893108677938900633 |  1735595921 | 1 |   1 |  1638.0000000000000000
  6426257563931096930 |  2069778861 | 1 |   0 |  1087.0000000000000000
+ 4893108677938900633 |  1735595921 | 1 |   1 |  1638.0000000000000000
  5217719856882989028 |  1714527409 | 1 |   0 |  2428.0000000000000000
  7953783461857148347 |  1342243722 | 1 |   0 |  1638.0000000000000000
  6103859743937398143 |  1088271979 | 1 |   0 |  1368.0000000000000000
  5143451110840006257 |  2139306194 | 1 |   0 |  1638.0000000000000000
  5737380807278362037 |  1714527409 | 1 |   0 |  2428.0000000000000000
- 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
+ 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
@@ -2179,22 +2167,23 @@ SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WH
 (0 rows)
 
 EXPLAIN (COSTS OFF) SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;
-                                                                                                                                                  QUERY PLAN                                                                                                                                                   
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                                                     QUERY PLAN                                                                                                                                                      
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Limit
    ->  GroupAggregate
-         Group Key: (vtimestamp_trunc('minute'::text, (date_trunc('minute'::text, eventtime))))
-         ->  Sort
-               Sort Key: (vtimestamp_trunc('minute'::text, (date_trunc('minute'::text, eventtime))))
-               ->  Gather
-                     Workers Planned: 7
-                     ->  Custom Scan (gamma_vec_devector)
-                           ->  Custom Scan (gamma_vec_result)
-                                 ->  Result
-                                       ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                             ->  Parallel Seq Scan on hits
-                                                   Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
-(13 rows)
+         Group Key: (date_trunc('minute'::text, eventtime))
+         ->  Gather Merge
+               Workers Planned: 7
+               ->  Custom Scan (gamma_vec_devector)
+                     ->  Custom Scan (gamma_vec_sort)
+                           ->  Sort
+                                 Sort Key: (date_trunc('minute'::text, eventtime)) USING <
+                                 ->  Custom Scan (gamma_vec_result)
+                                       ->  Result
+                                             ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                                   ->  Parallel Seq Scan on hits
+                                                         Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
+(14 rows)
 
 SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;
  m | pageviews 
@@ -2207,4 +2196,5 @@ reset MAX_PARALLEL_WORKERS_PER_GATHER;
 reset PARALLEL_SETUP_COST;
 reset PARALLEL_TUPLE_COST;
 reset MIN_PARALLEL_TABLE_SCAN_SIZE;
+reset gammadb_copy_to_cvtable;
 drop extension gammadb;
