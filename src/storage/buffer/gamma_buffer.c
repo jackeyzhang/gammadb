@@ -62,7 +62,11 @@ gamma_buffer_add_cv(Oid relid, Oid rgid, int attno,
 
 	/* initialize the toc entry */
 	entry = gamma_toc_alloc((gamma_toc *)toc, nbytes);
-	Assert(entry != NULL);
+	if (entry == NULL)
+	{
+		gamma_toc_lock_release((gamma_toc *)toc);
+		return false;
+	}
 
 	entry_addr = gamma_toc_addr((gamma_toc *)toc, entry);
 	memcpy(entry_addr, data, values_nbytes);
