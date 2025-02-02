@@ -32,6 +32,7 @@
 #include "optimizer/gamma_paths.h"
 #include "storage/gamma_buffer.h"
 #include "storage/gamma_rg.h"
+#include "tcop/gamma_utility.h"
 #include "utils/gamma_cache.h"
 #include "utils/nodes/gamma_nodes.h"
 
@@ -181,6 +182,9 @@ _PG_init(void)
 	gamma_vec_sort_init();
 	gamma_indexscan_init();
 	gamma_indexonlyscan_init();
+
+	/* do some utility works */
+	gamma_utility_startup();
 
 #ifdef _GAMMAX_
 	gamma_colindex_scan_init();
