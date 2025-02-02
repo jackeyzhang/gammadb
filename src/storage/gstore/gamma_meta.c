@@ -43,9 +43,8 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
-
+#include "storage/ctable_am.h"
 #include "storage/gamma_meta.h"
-
 
 #define GAMMA_META_CV_TABLE_NAME "gammadb_cv_table_%u"
 #define GAMMA_META_CV_INDEX_NAME "gammadb_cv_index_%u"
@@ -774,4 +773,16 @@ bool
 gamma_meta_tid_is_columnar(ItemPointer tid)
 {
 	return (ItemPointerGetBlockNumber(tid) > GAMMA_DELTA_TABLE_NBLOCKS);
+}
+
+bool
+gamma_meta_is_gamma_table(Oid relid)
+{
+	bool result = false;
+	Relation rel = table_open(relid, AccessShareLock);
+	if (rel->rd_tableam == ctable_tableam_routine())
+		result = true;
+
+	table_close(rel, AccessShareLock);
+	return result;
 }

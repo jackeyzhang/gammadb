@@ -65,4 +65,6 @@ extern uint16 gamma_meta_ptid_get_rowid(ItemPointer tid);
 extern bool gamma_meta_tid_is_columnar(ItemPointer tid);
 extern void gamma_meta_set_tid(HeapTuple tuple, uint32 rgid, uint16 rowid);
 
+extern bool gamma_meta_is_gamma_table(Oid relid);
+
 #endif /*GAMMA_META_H*/

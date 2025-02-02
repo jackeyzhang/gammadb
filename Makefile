@@ -74,6 +74,9 @@ OBJS += src/storage/gaccess/ctable_am.o \
 		src/storage/gaccess/ctable_vec_am.o \
 		src/storage/gaccess/gamma_cvtable_am.o
 
+#src/tcop
+OBJS += src/tcop/gamma_utility.o
+
 ifeq ($(GAMMA), X)
 SRCX := $(shell find gammax -name "*.c")
 OBJS += $(SRCX:.c=.o)
