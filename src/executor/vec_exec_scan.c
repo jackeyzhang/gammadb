@@ -46,7 +46,7 @@ static inline TupleTableSlot* vec_tablescan_execscanfetch(ScanState *node,
 			  ExecScanAccessMtd accessMtd, ExecScanRecheckMtd recheckMtd);
 static bool tlist_matches_tupdesc(PlanState *ps, List *tlist, Index varno,
 		TupleDesc tupdesc);
-static bool vec_exec_qual(ExprState *qual, ExprContext *econtext);
+static bool gamma_exec_qual(ExprState *qual, ExprContext *econtext);
 
 /*
  * ExecScanFetch -- check interrupts & fetch next potential tuple
@@ -158,7 +158,7 @@ vec_tablescan_execscanfetch(ScanState *node,
 }
 
 static bool
-vec_exec_qual(ExprState *qual, ExprContext *econtext)
+gamma_exec_qual(ExprState *qual, ExprContext *econtext)
 {
 	int row;
 	VectorTupleSlot *vslot;
@@ -184,7 +184,6 @@ vec_exec_qual(ExprState *qual, ExprContext *econtext)
 	else if (VDATUM_IS_REF(qual_bools) && VDATUM_REF_ISNULL(qual_bools) != NULL)
 	{
 		/* do nothing */
-		//memset(vslot->skip, false, sizeof(bool) * VECTOR_SIZE);
 	}
 	else
 		memcpy(vslot->skip,VDATUM_ARR_ISNULL(qual_bools),sizeof(bool) * VECTOR_SIZE);
@@ -288,7 +287,7 @@ vec_tablescan_execscan(ScanState *node,
 		 */
 		econtext->ecxt_scantuple = slot;
 
-		if (qual == NULL || vec_exec_qual(qual, econtext))
+		if (qual == NULL || gamma_exec_qual(qual, econtext))
 		{
 			/*
 			 * Found a satisfactory scan tuple.

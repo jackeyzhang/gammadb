@@ -198,14 +198,6 @@ vec_tablescan_begin(CustomScanState *node, EState *estate, int eflags)
 	SeqScan	*plan = (SeqScan *)linitial(cscan->custom_plans);
 	
 	/* custom scan op need en vector TODO */
-#if 0
-	if (!IsParallelWorker())
-	{
-		cscan->scan.plan.targetlist =
-			(List *) gamma_vec_convert_node((Node *) cscan->scan.plan.targetlist);
-	}
-#endif
-
 	vstate->seqstate = (VecSeqScanState *) vec_tablescan_execinit(plan,
 																	estate,
 																	eflags);
@@ -331,29 +323,17 @@ vec_tablescan_execinit(SeqScan *node, EState *estate, int eflags)
 	ExecInitResultTypeTL(&scanstate->ss.ps);
 	VecExecAssignScanProjectionInfo(&scanstate->ss);
 
-	/*
-	 * initialize child expressions
-	 */
+	/* Use BoolExpr instead of qual list */
 	if (((Plan *) node)->qual != NULL && IsA(((Plan *) node)->qual, List))
 	{
-		FuncExpr *newexpr = makeNode(FuncExpr);
-		newexpr->funcid = gamma_get_boolexpr_and_oid();
-		newexpr->funcresulttype = en_vec_type(BOOLOID);
-		newexpr->funcretset = false;
-		newexpr->funcvariadic = true;
-		newexpr->funcformat = COERCE_EXPLICIT_CALL; //TODO:
-		newexpr->funccollid = InvalidOid;
-		newexpr->inputcollid = InvalidOid;
-		newexpr->args = ((Plan *) node)->qual;
-		newexpr->location = -1;
-		qual = (Expr *)newexpr;
-		//qual = makeBoolExpr(AND_EXPR, ((Plan *) node)->qual, -1); 
+		qual = makeBoolExpr(AND_EXPR, ((Plan *) node)->qual, -1); 
 	}
 	else
 	{
 		qual = (Expr *) ((Plan *)node)->qual;
 	}
 
+	/* initialize expression directly, do not use qual list */
 	scanstate->ss.ps.qual = gamma_exec_init_expr(qual, (PlanState *) scanstate);
 
 	return scanstate;

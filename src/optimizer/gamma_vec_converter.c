@@ -206,38 +206,26 @@ gamma_vec_convert_mutator(Node *node, ConverterContext *ctx)
 		case T_BoolExpr:
 			{
 				BoolExpr *boolexpr = (BoolExpr*) node;
-				FuncExpr *newexpr;
-				Oid funcid = InvalidOid;
+				BoolExpr *newboolexpr;
 				List *vargs = (List *)plan_tree_mutator((Node *)boolexpr->args,
 													gamma_vec_convert_mutator,
 													ctx);
 
 				if (boolexpr->boolop == AND_EXPR)
 				{
-					funcid = gamma_get_boolexpr_and_oid();
+					newboolexpr = (BoolExpr *)makeBoolExpr(AND_EXPR, vargs, -1); 
 				}
 				else if (boolexpr->boolop == OR_EXPR)
 				{
-					funcid = gamma_get_boolexpr_or_oid();
+					newboolexpr = (BoolExpr *)makeBoolExpr(OR_EXPR, vargs, -1); 
 				}
 				else
 				{
+					newboolexpr = (BoolExpr *)makeBoolExpr(NOT_EXPR, vargs, -1); 
 					Assert(boolexpr->boolop == NOT_EXPR);
-					funcid = gamma_get_boolexpr_not_oid();
 				}
 
-				newexpr = makeNode(FuncExpr);
-				newexpr->funcid = funcid;
-				newexpr->funcresulttype = en_vec_type(BOOLOID);
-				newexpr->funcretset = false;
-				newexpr->funcvariadic = true;
-				newexpr->funcformat = COERCE_EXPLICIT_CALL; //TODO:
-				newexpr->funccollid = InvalidOid;
-				newexpr->inputcollid = InvalidOid;
-				newexpr->args = vargs;
-				newexpr->location = -1;
-
-				return (Node *)boolexpr;
+				return (Node *)newboolexpr;
 			}
 		case T_FuncExpr:
 			{
