@@ -106,6 +106,12 @@ gamma_indexonlyscan_methods(void)
 }
 
 bool
+gamma_is_indexonlyscan_custompath(CustomPath *cpath)
+{
+	return ((void *)cpath->methods == (void *)&gamma_indexonlyscan_path_methods);
+}
+
+bool
 gamma_is_indexonlyscan_customscan(CustomScan *cscan)
 {
 	return ((void *)cscan->methods == (void *)&gamma_indexonlyscan_scan_methods);

@@ -21,6 +21,8 @@
 
 #include "executor/gamma_vec_agg.h"
 #include "executor/gamma_devectorize.h"
+#include "executor/gamma_indexscan.h"
+#include "executor/gamma_indexonlyscan.h"
 #include "executor/gamma_vec_result.h"
 #include "executor/gamma_vec_sort.h"
 #include "executor/gamma_vec_tablescan.h"
@@ -179,7 +181,14 @@ gamma_agg_path_checker(PlannerInfo *root, RelOptInfo *input_rel,
 
 	/*TODO: need compare path->parent with input_rel ? */
 	if (path->parent == input_rel && path->pathtype == T_CustomScan)
+	{
+		if (gamma_is_indexonlyscan_custompath((CustomPath *) path) ||
+			gamma_is_indexscan_custompath((CustomPath *) path))
+			return GAMMA_AGG_NO;
+
 		return GAMMA_AGG_YES;
+
+	}
 	else if (path->parent == input_rel && path->pathtype == T_SeqScan)
 		return GAMMA_AGG_NO;
 	else if (!IS_UPPER_REL(path->parent) &&

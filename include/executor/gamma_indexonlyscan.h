@@ -22,6 +22,7 @@
 
 extern const CustomPathMethods* gamma_indexonlyscan_methods(void);
 extern void gamma_indexonlyscan_init(void);
+extern bool gamma_is_indexonlyscan_custompath(CustomPath *cpath);
 extern bool gamma_is_indexonlyscan_customscan(CustomScan *cscan);
 
 #endif   /* GAMMA_INDEXONLYSCAN_H */
