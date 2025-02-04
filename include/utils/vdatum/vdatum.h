@@ -234,5 +234,102 @@ extern vdatum *copyvdatum(vdatum *src, bool *skip);
 extern void clearvdatum(vdatum *vt);
 
 typedef struct vdatum vbool;
-vbool* buildvbool(int dim, bool *skip);
+extern vbool* buildvbool(int dim, bool *skip);
+
+static inline
+void vdatum_set_not(vdatum *datum)
+{
+	int i;
+	for(i = 0; i < datum->dim; i++)
+	{
+		datum->values[i] = BoolGetDatum(!DatumGetBool(datum->values[i]));
+	}
+
+	return;
+}
+
+static inline
+bool vdatum_check_all_null(vdatum *datum)
+{
+	int i;
+	bool result = true;
+
+	for(i = 0; i < datum->dim; i++)
+	{
+		if (!datum->isnull[i])
+		{
+			result = false;
+			break;
+		}
+	}
+
+	return result;
+}
+
+static inline
+bool vdatum_check_all_true(vdatum *datum)
+{
+	int i;
+	bool result = true;
+
+	for(i = 0; i < datum->dim; i++)
+	{
+		if (!DatumGetBool(datum->values[i]))
+		{
+			result = false;
+			break;
+		}
+	}
+
+	return result;
+}
+
+static inline
+bool vdatum_check_all_false(vdatum *datum)
+{
+	int i;
+	bool result = true;
+
+	for(i = 0; i < datum->dim; i++)
+	{
+		if (DatumGetBool(datum->values[i]))
+		{
+			result = false;
+			break;
+		}
+	}
+
+	return result;
+}
+
+static inline
+void vdatum_copy(vdatum *dst, vdatum *src)
+{
+	memcpy(dst, src, sizeof(vdatum));
+	return;
+}
+
+static inline
+void vdatum_set_and(vdatum *dst, vdatum *src)
+{
+	int i;
+	for(i = 0; i < dst->dim; i++)
+	{
+		dst->isnull[i] = dst->isnull[i] || src->isnull[i];
+		dst->values[i] = dst->values[i] & src->values[i]/* & (!dst->isnull[i])*/;
+	}
+}
+
+static inline
+void vdatum_set_or(vdatum *dst, vdatum *src)
+{
+	int i;
+	for(i = 0; i < dst->dim; i++)
+	{
+		dst->isnull[i] = dst->isnull[i] || src->isnull[i];
+		dst->values[i] = dst->values[i] | src->values[i];
+	}
+
+}
+
 #endif

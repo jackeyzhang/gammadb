@@ -55,6 +55,14 @@ typedef struct GammaSubPlanState
 	ExprContext *row_exprcontext;
 } GammaSubPlanState;
 
+typedef struct GammaExprState
+{
+	ExprState state;
+
+	/* temp quals result value */
+	vdatum *vec_result;
+} GammaExprState;
+
 /*
  * Use computed-goto-based opcode dispatch when computed gotos are available.
  * But use a separate symbol so that it's easy to adjust locally in this file
@@ -839,7 +847,77 @@ gamma_exec_init_expr_rec(Expr *node, ExprState *state,
 
 		case T_BoolExpr:
 			{
-				elog(ERROR, "BoolExpr is not used in GammaDB");
+				GammaExprState *gstate = (GammaExprState *) state;
+				BoolExpr   *boolexpr = (BoolExpr *) node;
+				int			nargs = list_length(boolexpr->args);
+				List	   *adjust_jumps = NIL;
+				int			off;
+				ListCell   *lc;
+
+				gstate->vec_result = buildvdatum(BOOLOID, VECTOR_SIZE, NULL);
+
+				/* allocate scratch memory used by all steps of AND/OR */
+				if (boolexpr->boolop != NOT_EXPR)
+					scratch.d.boolexpr.anynull = (bool *) palloc(sizeof(bool));
+
+				off = 0;
+				foreach(lc, boolexpr->args)
+				{
+					Expr	   *arg = (Expr *) lfirst(lc);
+
+					/* Evaluate argument into our output variable */
+					gamma_exec_init_expr_rec(arg, state, resv, resnull);
+
+					/* Perform the appropriate step type */
+					switch (boolexpr->boolop)
+					{
+						case AND_EXPR:
+							Assert(nargs >= 2);
+
+							if (off == 0)
+								scratch.opcode = EEOP_BOOL_AND_STEP_FIRST;
+							else if (off + 1 == nargs)
+								scratch.opcode = EEOP_BOOL_AND_STEP_LAST;
+							else
+								scratch.opcode = EEOP_BOOL_AND_STEP;
+							break;
+						case OR_EXPR:
+							Assert(nargs >= 2);
+
+							if (off == 0)
+								scratch.opcode = EEOP_BOOL_OR_STEP_FIRST;
+							else if (off + 1 == nargs)
+								scratch.opcode = EEOP_BOOL_OR_STEP_LAST;
+							else
+								scratch.opcode = EEOP_BOOL_OR_STEP;
+							break;
+						case NOT_EXPR:
+							Assert(nargs == 1);
+
+							scratch.opcode = EEOP_BOOL_NOT_STEP;
+							break;
+						default:
+							elog(ERROR, "unrecognized boolop: %d",
+								 (int) boolexpr->boolop);
+							break;
+					}
+
+					scratch.d.boolexpr.jumpdone = -1;
+					gamma_expr_eval_push_step(state, &scratch);
+					adjust_jumps = lappend_int(adjust_jumps,
+											   state->steps_len - 1);
+					off++;
+				}
+
+				/* adjust jump targets */
+				foreach(lc, adjust_jumps)
+				{
+					ExprEvalStep *as = &state->steps[lfirst_int(lc)];
+
+					Assert(as->d.boolexpr.jumpdone == -1);
+					as->d.boolexpr.jumpdone = state->steps_len;
+				}
+
 				break;
 			}
 
@@ -1293,6 +1371,7 @@ gamma_exec_ready_expr(ExprState *state)
 ExprState *
 gamma_exec_init_expr(Expr *node, PlanState *parent)
 {
+	GammaExprState *gstate;
 	ExprState *state;
 	ExprEvalStep scratch = {0};
 
@@ -1300,8 +1379,13 @@ gamma_exec_init_expr(Expr *node, PlanState *parent)
 	if (node == NULL)
 		return NULL;
 
-	/* Initialize ExprState with empty step list */
-	state = makeNode(ExprState);
+	/* Initialize GammaExprState with empty step list */
+	gstate = (GammaExprState *) palloc0fast(sizeof(GammaExprState));
+	gstate->vec_result = NULL;
+
+	/* Initialize ExprState */
+	state = (ExprState *) gstate;
+	state->type = T_ExprState;
 	state->expr = node;
 	state->parent = parent;
 	state->ext_params = NULL;
@@ -2026,15 +2110,144 @@ gamma_exec_interp_expr(ExprState *state, ExprContext *econtext, bool *isnull)
 		}
 
 		EEO_CASE(EEOP_BOOL_AND_STEP_FIRST)
+		{
+			*op->d.boolexpr.anynull = false;
+
+			vdatum_copy(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+			if (*op->resnull)
+			{
+				*op->d.boolexpr.anynull = true;
+			}
+			else if (vdatum_check_all_false((vdatum *) *op->resvalue))
+			{
+				EEO_JUMP(op->d.boolexpr.jumpdone);
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_AND_STEP)
+		{
+			vdatum_set_and(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+			if (*op->resnull)
+			{
+				*op->d.boolexpr.anynull = true;
+			}
+			else if (vdatum_check_all_false((vdatum *) *op->resvalue))
+			{
+				EEO_JUMP(op->d.boolexpr.jumpdone);
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_AND_STEP_LAST)
+		{
+			vdatum_set_and(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+			if (*op->resnull)
+			{
+				/* result is already set to NULL, need not change it */
+			}
+			else if (vdatum_check_all_false((vdatum *) *op->resvalue))
+			{
+			}
+			else if (*op->d.boolexpr.anynull)
+			{
+				*op->resnull = true;
+			}
+			else
+			{
+				/* result is already set to TRUE, need not change it */
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_OR_STEP_FIRST)
+		{
+			*op->d.boolexpr.anynull = false;
+			vdatum_copy(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+			if (*op->resnull)
+			{
+				*op->d.boolexpr.anynull = true;
+			}
+			else if (vdatum_check_all_true((vdatum *) *op->resvalue))
+			{
+				EEO_JUMP(op->d.boolexpr.jumpdone);
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_OR_STEP)
+		{
+			vdatum_set_or(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+			if (*op->resnull)
+			{
+				*op->d.boolexpr.anynull = true;
+			}
+			else if (vdatum_check_all_true((vdatum *) *op->resvalue))
+			{
+				EEO_JUMP(op->d.boolexpr.jumpdone);
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_OR_STEP_LAST)
+		{
+			vdatum_set_or(((GammaExprState *)state)->vec_result,
+							(vdatum *) *op->resvalue);
+
+			*op->resvalue = PointerGetDatum(((GammaExprState *)state)->vec_result);
+			*op->resnull = vdatum_check_all_null((vdatum *) *op->resvalue);
+
+			if (*op->resnull || vdatum_check_all_true((vdatum *) *op->resvalue))
+			{
+				/* result is already set to TRUE, need not change it */
+			}
+			else if (*op->d.boolexpr.anynull)
+			{
+				*op->resnull = true;
+			}
+			else
+			{
+				/* result is already set to FALSE, need not change it */
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_BOOL_NOT_STEP)
+		{
+			vdatum_set_not((vdatum *) *op->resvalue);
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_QUAL)
 		{
-			elog(ERROR, "BoolExpr is not used in GammaDB.");
+			elog(ERROR, "ExecQual is not used in GammaDB");
 			EEO_NEXT();
 		}
 		EEO_CASE(EEOP_JUMP)
