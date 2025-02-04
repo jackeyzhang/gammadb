@@ -21,8 +21,11 @@
 
 #include "access/detoast.h"
 #include "access/tupmacs.h"
+#include "utils/rel.h"
+#include "utils/typcache.h"
 
 #include "storage/gamma_cv.h"
+#include "utils/gamma_fmgr.h"
 
 ColumnVector*
 gamma_cv_build(Form_pg_attribute attr, int dim)
@@ -174,4 +177,56 @@ gamma_cv_fill_data(ColumnVector *cv, char *data, uint32 length,
 					(errmsg("offset: %d, data length: %d", offset, length)));
 		}
 	}
+}
+
+bool
+gamma_cv_get_metainfo(Relation rel, Relation cvrel, int32 attno, ColumnVector *cv,
+			Datum *p_min, Datum *p_max, bool *p_has_null)
+{
+	int i;
+	Datum min;
+	Datum max;
+	bool has_null = false;
+	TupleDesc tupdesc = rel->rd_att;
+	Form_pg_attribute attr = &tupdesc->attrs[attno - 1];
+	Oid typcoll = attr->attcollation;
+	Oid typid = attr->atttypid;
+	TypeCacheEntry *typentry;
+	FmgrInfo *cmp_func;
+
+	typentry = lookup_type_cache(typid, TYPECACHE_CMP_PROC_FINFO);
+	cmp_func = &typentry->cmp_proc_finfo;
+
+	max = min = cv->values[0];
+	has_null = cv->isnull[0];
+
+	for (i = 1; i < cv->dim; i++)
+	{
+		if (cv->isnull[i])
+		{
+			has_null = true;
+			continue;
+		}
+
+		if (DatumGetInt32(FunctionCall2Coll(cmp_func, typcoll, max, cv->values[i])) < 0)
+		{
+			max = cv->values[i];
+		}
+
+		if (DatumGetInt32(FunctionCall2Coll(cmp_func, typcoll, min, cv->values[i])) > 0)
+		{
+			min = cv->values[i];
+		}
+	}
+
+	if (p_min)
+		*p_min = min;
+
+	if (p_max)
+		*p_max = max;
+
+	if (p_has_null)
+		*p_has_null = has_null;
+
+	return true;
 }

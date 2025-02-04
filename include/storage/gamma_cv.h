@@ -54,6 +54,9 @@ extern ColumnVector* gamma_cv_build(Form_pg_attribute attr, int dim);
 extern void gamma_cv_serialize(ColumnVector *cv, StringInfo serial_data);
 extern void gamma_cv_fill_data(ColumnVector *cv, char *data, uint32 length,
 					bool *nulls, uint32 count);
+extern bool gamma_cv_get_metainfo(Relation rel, Relation cvrel,
+					int32 attno, ColumnVector *cv,
+					Datum *p_min, Datum *p_max, bool *p_has_null);
 
 #define gamma_store_att_byval(T,newdatum,attlen) \
 	do { \

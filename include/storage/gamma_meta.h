@@ -54,7 +54,7 @@ extern Oid gamma_meta_rgid_sequence_oid(Relation rel);
 extern void gamma_meta_insert_rowgroup(Relation rel, RowGroup *rg);
 extern void gamma_meta_insert_delbitmap(Relation cvrel, uint32 rgid, 
 											bool *delbitmap, int32 count);
-extern void gamma_meta_insert_cv(Relation cvrel,
+extern void gamma_meta_insert_cv(Relation rel, Relation cvrel,
 					 uint32 rgid, int32 attno, ColumnVector *cv);
 
 extern ItemPointerData gamma_meta_cv_convert_tid(uint32 rgid, uint16 rowid);
