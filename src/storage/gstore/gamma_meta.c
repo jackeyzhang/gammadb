@@ -33,6 +33,7 @@
 #include "catalog/toasting.h"
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
+#include "fmgr.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "nodes/makefuncs.h"
@@ -40,11 +41,14 @@
 #include "storage/lock.h"
 #include "storage/predicate.h"
 #include "utils/builtins.h"
+#include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
 #include "storage/ctable_am.h"
+#include "storage/gamma_cv.h"
 #include "storage/gamma_meta.h"
+#include "utils/utils.h"
 
 #define GAMMA_META_CV_TABLE_NAME "gammadb_cv_table_%u"
 #define GAMMA_META_CV_INDEX_NAME "gammadb_cv_index_%u"
@@ -606,7 +610,7 @@ gamma_meta_insert_rowgroup(Relation rel, RowGroup *rg)
 	for (attno = 0; attno < tupdesc->natts; attno++)
 	{
 		cv = gamma_rg_get_cv(rg, attno);
-		gamma_meta_insert_cv(cv_rel, rgid, attno + 1, cv);
+		gamma_meta_insert_cv(rel, cv_rel, rgid, attno + 1, cv);
 	}
 
 	relation_close(cv_rel, RowExclusiveLock);
@@ -646,11 +650,10 @@ gamma_meta_insert_delbitmap(Relation cvrel, uint32 rgid,
 	heap_freetuple(tuple);
 
 	return;
-
 }
 
 void
-gamma_meta_insert_cv(Relation cvrel,
+gamma_meta_insert_cv(Relation rel, Relation cvrel,
 					 uint32 rgid, int32 attno, ColumnVector *cv)
 {
 	HeapTuple tuple;
@@ -661,20 +664,37 @@ gamma_meta_insert_cv(Relation cvrel,
 	Datum datum_data;
 	text *text_nulls;
 	Datum datum_nulls;
+
 	int i;
 	bool has_null = false;
+	Datum min;
+	Datum max;
+
+	text *t_min;
+	text *t_max;
+
+	TupleDesc tupdesc = rel->rd_att;
+	Form_pg_attribute attr = &tupdesc->attrs[attno - 1];
+	Oid typid = attr->atttypid;
+	bool has_minmax = (en_vec_type(typid) != InvalidOid);
 
 	gamma_cv_serialize(cv, data);
 
 	text_data = cstring_to_text_with_len(data->data, data->len);
 	datum_data = PointerGetDatum(text_data);
 
-	for (i = 0; i < cv->dim; i++)
+	/* CV metainfo includes: min/max */
+	if (has_minmax)
+		gamma_cv_get_metainfo(rel, cvrel, attno, cv, &min, &max, &has_null);
+	else
 	{
-		if (cv->isnull[i])
+		for (i = 1; i < cv->dim; i++)
 		{
-			has_null = true;
-			break;
+			if (cv->isnull[i])
+			{
+				has_null = true;
+				break;
+			}
 		}
 	}
 
@@ -685,13 +705,36 @@ gamma_meta_insert_cv(Relation cvrel,
 		datum_nulls = PointerGetDatum(text_nulls);
 	}
 
+	if (has_minmax)
+	{
+		Oid typInput;
+		bool typIsVarlena;
+		char *cs_min;
+		char *cs_max;
+
+		getTypeOutputInfo(typid, &typInput, &typIsVarlena);
+		cs_min = OidOutputFunctionCall(typInput, min);
+		cs_max = OidOutputFunctionCall(typInput, max);
+
+		t_min = cstring_to_text_with_len(cs_min, strlen(cs_min));
+		t_max = cstring_to_text_with_len(cs_max, strlen(cs_max));
+	}
+
 	memset(values, 0, sizeof(values));
 	memset(nulls, 0, sizeof(nulls));
 
 	values[Anum_gamma_rowgroup_rgid - 1] = ObjectIdGetDatum(rgid);
 	values[Anum_gamma_rowgroup_attno - 1] = Int32GetDatum(attno);
-	nulls[Anum_gamma_rowgroup_min - 1] = true;
-	nulls[Anum_gamma_rowgroup_max - 1] = true;
+	if (has_minmax)
+	{
+		values[Anum_gamma_rowgroup_min - 1] = PointerGetDatum(t_min);
+		values[Anum_gamma_rowgroup_max - 1] = PointerGetDatum(t_max);
+	}
+	else
+	{
+		nulls[Anum_gamma_rowgroup_min - 1] = true;
+		nulls[Anum_gamma_rowgroup_max - 1] = true;
+	}
 	values[Anum_gamma_rowgroup_count - 1] = Int32GetDatum(cv->dim);;
 	nulls[Anum_gamma_rowgroup_mode - 1] = true;
 	values[Anum_gamma_rowgroup_values - 1] = datum_data;

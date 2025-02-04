@@ -126,7 +126,7 @@ vdate_le(PG_FUNCTION_ARGS)
 	result = buildvbool(vdt1->dim, vdt1->skipref);
 	for (i = 0; i < VECTOR_SIZE; i++ )
 	{
-		if (vdt1->skipref[i])
+		if (vdt1->skipref != NULL && vdt1->skipref[i])
 			continue;
 		VDATUM_SET_DATUM(result,i,BoolGetDatum(DatumGetDateADT(VDATUM_DATUM(vdt1, i)) <= dateVal2));
 	}
@@ -144,7 +144,7 @@ vdate_ge_const(PG_FUNCTION_ARGS)
 	result = buildvbool(vdt1->dim, vdt1->skipref);
 	for (i = 0; i < VECTOR_SIZE; i++ )
 	{
-		if (vdt1->skipref[i])
+		if (vdt1->skipref != NULL && vdt1->skipref[i])
 			continue;
 		VDATUM_SET_DATUM(result,i,BoolGetDatum(DatumGetDateADT(VDATUM_DATUM(vdt1, i)) >= dateVal2));
 	}

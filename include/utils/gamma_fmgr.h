@@ -17,6 +17,7 @@
 #define GAMMA_FMGR_H
 
 #include "fmgr.h"
+#include "utils/sortsupport.h"
 
 extern Datum DirectFunctionCall2Mem(PGFunction func, fmNodePtr context,
 										Datum arg1, Datum arg2);

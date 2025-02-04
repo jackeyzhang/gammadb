@@ -17,6 +17,7 @@
 #include "postgres.h"
 
 #include "fmgr.h"
+#include "utils/typcache.h"
 
 #include "utils/gamma_fmgr.h"
 
@@ -41,4 +42,3 @@ DirectFunctionCall2Mem(PGFunction func, fmNodePtr context, Datum arg1, Datum arg
 
 	return result;
 }
-
