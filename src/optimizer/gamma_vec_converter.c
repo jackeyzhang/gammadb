@@ -45,14 +45,17 @@
 #include "utils/utils.h"
 #include "utils/vdatum/vdatum.h"
 
-static void mutate_plan_fields(Plan *newplan, Plan *oldplan,
-							   Node *(*mutator) (), void *context);
-static Node * plan_tree_mutator(Node *node, Node *(*mutator) (), void *context);
-
 typedef struct ConverterContext
 {
 	Oid retType;
 }ConverterContext;
+
+static void mutate_plan_fields(Plan *newplan, Plan *oldplan,
+							   Node *(*mutator) (), void *context);
+static Node * plan_tree_mutator(Node *node, Node *(*mutator) (), void *context);
+static Node * gamma_agg_targetlist_mutator(Node *node, void *context);
+static Node * gamma_vec_convert_mutator(Node *node, ConverterContext *ctx);
+
 
 #define EXTRACT_TIME_OID	6202
 #define TEXT_LENGTH_OID		1257
@@ -80,6 +83,25 @@ gamma_vec_convert_func_expr(Oid funcoid)
 		return "vtimestamp_trunc";
 
 	return NULL;
+}
+
+/* Agg targetlist need to process differently */
+static Node *
+gamma_process_agg_targetlist(Node *expr)
+{
+	/* No setup needed for tree walk, so away we go */
+	return gamma_agg_targetlist_mutator(expr, NULL);
+}
+
+static Node *
+gamma_agg_targetlist_mutator(Node *node, void *context)
+{
+	if (IsA(node, Aggref))
+	{
+		return gamma_vec_convert_mutator(node, NULL);
+	}
+
+	return expression_tree_mutator(node, gamma_agg_targetlist_mutator, context);
 }
 
 static Node*
@@ -404,16 +426,21 @@ plan_tree_mutator(Node *node,
 			{
 				Agg			*vagg;
 				List *qual = NULL;
+				List *targetlist = NULL;
 				plan = (Plan *) node;
 
 				qual = plan->qual;
+				targetlist = plan->targetlist;
 				plan->qual = NULL;
+				plan->targetlist = NULL;
 
 				FLATCOPY(vagg, node, Agg);
 
 				PLANMUTATE(vagg, node);
 
 				((Plan *)vagg)->qual = qual;
+				((Plan *)vagg)->targetlist =
+						(List *)gamma_process_agg_targetlist((Node *)targetlist);
 				return (Node *)vagg;
 			}
 		case T_IndexOnlyScan:
