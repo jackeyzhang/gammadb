@@ -59,6 +59,7 @@ extern double				gammadb_stats_analyze_tuple_factor;
 extern int					gammadb_cv_compress_method;
 
 extern bool					gammadb_rewrite_grouping_const;
+extern bool					gammadb_rewrite_simplify_grouping;
 
 void _PG_init(void);
 
@@ -152,6 +153,14 @@ gamma_guc_init(void)
 							 "Remove const in Grouping Clause.",
 							 NULL,
 							 &gammadb_rewrite_grouping_const,
+							 true,
+							 PGC_USERSET,
+							 GUC_NOT_IN_SAMPLE,
+							 NULL, NULL, NULL);
+	DefineCustomBoolVariable("gammadb_rewrite_simplify_grouping",
+							 "Simplify Grouping Clause.",
+							 NULL,
+							 &gammadb_rewrite_simplify_grouping,
 							 true,
 							 PGC_USERSET,
 							 GUC_NOT_IN_SAMPLE,

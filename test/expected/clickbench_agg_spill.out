@@ -1113,19 +1113,17 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
-                                          QUERY PLAN                                           
------------------------------------------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Custom Scan (gamma_vec_agg)
                ->  HashAggregate
-                     Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
-                     ->  Custom Scan (gamma_vec_result)
-                           ->  Result
-                                 ->  Custom Scan (gamma_vec_tablescan)
-                                       ->  Seq Scan on hits
-(10 rows)
+                     Group Key: clientip
+                     ->  Custom Scan (gamma_vec_tablescan)
+                           ->  Seq Scan on hits
+(8 rows)
 
 SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
   clientip  |  ?column?  |  ?column?  |  ?column?  |  c  
@@ -2197,23 +2195,21 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
-                                                QUERY PLAN                                                 
------------------------------------------------------------------------------------------------------------
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Finalize HashAggregate
-               Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
+               Group Key: clientip
                ->  Gather
                      Workers Planned: 7
                      ->  Custom Scan (gamma_vec_agg)
                            ->  Partial HashAggregate
-                                 Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
-                                 ->  Custom Scan (gamma_vec_result)
-                                       ->  Result
-                                             ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                                   ->  Parallel Seq Scan on hits
-(14 rows)
+                                 Group Key: clientip
+                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                       ->  Parallel Seq Scan on hits
+(12 rows)
 
 SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
   clientip  |  ?column?  |  ?column?  |  ?column?  |  c  
