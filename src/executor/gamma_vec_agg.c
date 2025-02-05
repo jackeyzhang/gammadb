@@ -1332,13 +1332,14 @@ gamma_vec_initialize_hashentry(VecAggState *vaggstate, VecTupleHashEntry entry,
 	AggState *aggstate = vaggstate->aggstate;
 	AggStatePerHash perhash = &aggstate->perhash[aggstate->current_set];
 	TupleHashTable hashtable = perhash->hashtable;
+	TupleDesc rowdesc = vaggstate->outer_tuple_slot->tts_tupleDescriptor;
 	TupleDesc tupdesc = slot->tts_tupleDescriptor;
 
 	/* Copy the first tuple in the group and use it when projecting */
 	oldctx = MemoryContextSwitchTo(hashtable->tablecxt);
 
 	/* init first slot */
-	entry->first_slot = MakeTupleTableSlot(tupdesc, &TTSOpsVirtual);
+	entry->first_slot = MakeTupleTableSlot(rowdesc, &TTSOpsVirtual);
 
 	for (col = 0; col < tupdesc->natts; col++)
 	{
