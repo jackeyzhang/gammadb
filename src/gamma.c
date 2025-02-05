@@ -58,6 +58,8 @@ extern int					gammadb_buffers;
 extern double				gammadb_stats_analyze_tuple_factor;
 extern int					gammadb_cv_compress_method;
 
+extern bool					gammadb_rewrite_grouping_const;
+
 void _PG_init(void);
 
 static void
@@ -142,6 +144,14 @@ gamma_guc_init(void)
 							 "Copy data to cvtable directly.",
 							 NULL,
 							 &gammadb_copy_to_cvtable,
+							 true,
+							 PGC_USERSET,
+							 GUC_NOT_IN_SAMPLE,
+							 NULL, NULL, NULL);
+	DefineCustomBoolVariable("gammadb_rewrite_grouping_const",
+							 "Remove const in Grouping Clause.",
+							 NULL,
+							 &gammadb_rewrite_grouping_const,
 							 true,
 							 PGC_USERSET,
 							 GUC_NOT_IN_SAMPLE,
