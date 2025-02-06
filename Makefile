@@ -39,7 +39,8 @@ OBJS += src/optimizer/gamma_planner.o \
 		src/optimizer/gamma_upper_paths.o \
 		src/optimizer/gamma_vec_checker.o \
 		src/optimizer/gamma_vec_converter.o \
-		src/optimizer/gamma_rewrite_grouping_const.o
+		src/optimizer/gamma_rewrite_grouping_const.o \
+		src/optimizer/gamma_rewrite_simplify_grouping.o
 
 #src/utils
 OBJS += src/utils/utils.o \

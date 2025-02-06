@@ -929,19 +929,17 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
-                                          QUERY PLAN                                           
------------------------------------------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Custom Scan (gamma_vec_agg)
                ->  HashAggregate
-                     Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
-                     ->  Custom Scan (gamma_vec_result)
-                           ->  Result
-                                 ->  Custom Scan (gamma_vec_tablescan)
-                                       ->  Seq Scan on hits
-(10 rows)
+                     Group Key: clientip
+                     ->  Custom Scan (gamma_vec_tablescan)
+                           ->  Seq Scan on hits
+(8 rows)
 
 SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
   clientip  |  ?column?  |  ?column?  |  ?column?  |  c  
@@ -1582,12 +1580,12 @@ SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM 
 ----------------------+----+--------------+-------
  -7918574344944952583 | 26 |              |    24
  -9154375582268094750 |  1 |              |    20
- -8455721461950319637 | 21 |              |    16
  -7725127544842036118 | 21 |              |    16
  -8284294157038592779 | 11 |              |    16
- -7018910098174567459 | 57 |              |    14
+ -8455721461950319637 | 21 |              |    16
  -7018910098174567459 | 56 |              |    14
  -7904263253391067902 | 34 |              |    14
+ -7018910098174567459 | 57 |              |    14
  -7918574344944952583 |  9 |              |    14
  -9158995094684353950 | 12 |              |    14
 (10 rows)
@@ -1866,16 +1864,16 @@ EXPLAIN (COSTS OFF) SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefres
 SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10;
  searchengineid |  clientip   | c  | sum |          avg          
 ----------------+-------------+----+-----+-----------------------
-              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
              13 |  -673500741 | 20 |  12 | 1638.0000000000000000
+              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
               2 |  -125068408 | 14 |   7 | 1638.0000000000000000
-              2 |   743072690 | 12 |   6 | 1368.0000000000000000
-              2 |  1140309473 | 12 |   6 | 1638.0000000000000000
               2 | -1555581670 | 12 |   6 | 1638.0000000000000000
-              2 | -1300828471 | 10 |   5 | 1396.0000000000000000
-              2 |  -181568119 | 10 |   5 | 1996.0000000000000000
-              2 |  1799458087 | 10 |   5 | 1304.0000000000000000
+              2 |  1140309473 | 12 |   6 | 1638.0000000000000000
+              2 |   743072690 | 12 |   6 | 1368.0000000000000000
               2 |  1943715871 | 10 |   5 | 1638.0000000000000000
+              2 |  -181568119 | 10 |   5 | 1996.0000000000000000
+              2 | -1300828471 | 10 |   5 | 1396.0000000000000000
+              2 |  1449805590 | 10 |   6 | 1638.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
@@ -1927,7 +1925,7 @@ EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip   | c | sum |          avg           
 ---------------------+-------------+---+-----+------------------------
- 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
+ 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
  5206346422301499756 | -1216690514 | 1 |   0 | 0.00000000000000000000
  6426257563931096930 |  2069778861 | 1 |   0 |  1087.0000000000000000
  4893108677938900633 |  1735595921 | 1 |   1 |  1638.0000000000000000
@@ -1936,7 +1934,7 @@ SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FR
  6103859743937398143 |  1088271979 | 1 |   0 |  1368.0000000000000000
  5143451110840006257 |  2139306194 | 1 |   0 |  1638.0000000000000000
  5737380807278362037 |  1714527409 | 1 |   0 |  2428.0000000000000000
- 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
+ 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
@@ -2004,23 +2002,21 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
-                                                QUERY PLAN                                                 
------------------------------------------------------------------------------------------------------------
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Finalize HashAggregate
-               Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
+               Group Key: clientip
                ->  Gather
                      Workers Planned: 7
                      ->  Custom Scan (gamma_vec_agg)
                            ->  Partial HashAggregate
-                                 Group Key: clientip, ((clientip - 1)), ((clientip - 2)), ((clientip - 3))
-                                 ->  Custom Scan (gamma_vec_result)
-                                       ->  Result
-                                             ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                                   ->  Parallel Seq Scan on hits
-(14 rows)
+                                 Group Key: clientip
+                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                       ->  Parallel Seq Scan on hits
+(12 rows)
 
 SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
   clientip  |  ?column?  |  ?column?  |  ?column?  |  c  
@@ -2030,8 +2026,8 @@ SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hi
  1735595921 | 1735595920 | 1735595919 | 1735595918 | 131
  2107723744 | 2107723743 | 2107723742 | 2107723741 | 126
  1852934819 | 1852934818 | 1852934817 | 1852934816 | 123
-  934770972 |  934770971 |  934770970 |  934770969 | 112
  1943715871 | 1943715870 | 1943715869 | 1943715868 | 112
+  934770972 |  934770971 |  934770970 |  934770969 | 112
  1140309473 | 1140309472 | 1140309471 | 1140309470 | 110
  1593446890 | 1593446889 | 1593446888 | 1593446887 | 104
  1262902180 | 1262902179 | 1262902178 | 1262902177 | 102
