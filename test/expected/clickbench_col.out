@@ -1083,19 +1083,17 @@ SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
-                              QUERY PLAN                               
------------------------------------------------------------------------
+                        QUERY PLAN                         
+-----------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Custom Scan (gamma_vec_agg)
                ->  HashAggregate
-                     Group Key: 1, url
-                     ->  Custom Scan (gamma_vec_result)
-                           ->  Result
-                                 ->  Custom Scan (gamma_vec_tablescan)
-                                       ->  Seq Scan on hits
-(10 rows)
+                     Group Key: url
+                     ->  Custom Scan (gamma_vec_tablescan)
+                           ->  Seq Scan on hits
+(8 rows)
 
 SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
  ?column? |                                                          url                                                           |  c  
@@ -1109,7 +1107,7 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
         1 | https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538 |  62
         1 | https://produkty/full&qset=159508&s_yers                                                                               |  60
         1 | https://produkty%2Fproduct_id                                                                                          |  50
-        1 | https://produkty/placetti-club/songs/search                                                                            |  43
+        1 | https://produkty%2Fpulove.ru/moscow                                                                                    |  43
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
@@ -2165,23 +2163,21 @@ SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
-                                         QUERY PLAN                                         
---------------------------------------------------------------------------------------------
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
  Limit
    ->  Sort
          Sort Key: (count(*)) DESC
          ->  Finalize HashAggregate
-               Group Key: (1), url
+               Group Key: url
                ->  Gather
                      Workers Planned: 7
                      ->  Custom Scan (gamma_vec_agg)
                            ->  Partial HashAggregate
-                                 Group Key: 1, url
-                                 ->  Custom Scan (gamma_vec_result)
-                                       ->  Result
-                                             ->  Parallel Custom Scan (gamma_vec_tablescan)
-                                                   ->  Parallel Seq Scan on hits
-(14 rows)
+                                 Group Key: url
+                                 ->  Parallel Custom Scan (gamma_vec_tablescan)
+                                       ->  Parallel Seq Scan on hits
+(12 rows)
 
 SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
  ?column? |                                                          url                                                           |  c  

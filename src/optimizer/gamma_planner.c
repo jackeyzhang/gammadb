@@ -25,6 +25,7 @@
 #include "executor/vector_tuple_slot.h"
 #include "optimizer/gamma_converter.h"
 #include "optimizer/gamma_paths.h"
+#include "optimizer/gamma_rewrite_grouping_const.h"
 
 
 bool enable_gammadb = false;
@@ -63,6 +64,9 @@ gamma_vec_planner(Query	*parse,
 	PlannedStmt	*stmt;
 	List *subplans;
 	ListCell *lc;
+
+	/* rewrite */
+	parse = gamma_rewrite_grouping_const(parse);
 
 	if (planner_hook_prev)
 		stmt = planner_hook_prev(parse, query_string,
