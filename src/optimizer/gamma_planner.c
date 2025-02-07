@@ -27,6 +27,7 @@
 #include "optimizer/gamma_paths.h"
 #include "optimizer/gamma_rewrite_grouping_const.h"
 #include "optimizer/gamma_rewrite_simplify_grouping.h"
+#include "optimizer/gamma_rewrite_extract_agg.h"
 
 
 bool enable_gammadb = false;
@@ -69,6 +70,7 @@ gamma_vec_planner(Query	*parse,
 	/* rewrite */
 	parse = gamma_rewrite_grouping_const(parse);
 	parse = gamma_rewrite_simplify_grouping(parse);
+	parse = gamma_rewrite_extract_agg(parse);
 
 	if (planner_hook_prev)
 		stmt = planner_hook_prev(parse, query_string,

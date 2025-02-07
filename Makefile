@@ -40,7 +40,8 @@ OBJS += src/optimizer/gamma_planner.o \
 		src/optimizer/gamma_vec_checker.o \
 		src/optimizer/gamma_vec_converter.o \
 		src/optimizer/gamma_rewrite_grouping_const.o \
-		src/optimizer/gamma_rewrite_simplify_grouping.o
+		src/optimizer/gamma_rewrite_simplify_grouping.o \
+		src/optimizer/gamma_rewrite_extract_agg.o
 
 #src/utils
 OBJS += src/utils/utils.o \
