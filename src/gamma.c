@@ -60,6 +60,7 @@ extern int					gammadb_cv_compress_method;
 
 extern bool					gammadb_rewrite_grouping_const;
 extern bool					gammadb_rewrite_simplify_grouping;
+extern bool					gammadb_rewrite_extract_agg;
 
 void _PG_init(void);
 
@@ -161,6 +162,14 @@ gamma_guc_init(void)
 							 "Simplify Grouping Clause.",
 							 NULL,
 							 &gammadb_rewrite_simplify_grouping,
+							 true,
+							 PGC_USERSET,
+							 GUC_NOT_IN_SAMPLE,
+							 NULL, NULL, NULL);
+	DefineCustomBoolVariable("gammadb_rewrite_extract_agg",
+							 "sum(c1+1) => sum(c1) + 1 * count(*)",
+							 NULL,
+							 &gammadb_rewrite_extract_agg,
 							 true,
 							 PGC_USERSET,
 							 GUC_NOT_IN_SAMPLE,
