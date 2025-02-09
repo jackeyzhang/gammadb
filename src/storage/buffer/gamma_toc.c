@@ -20,7 +20,6 @@
 
 #include "storage/gamma_toc.h"
 
-#define TOC_ENTRY_INVALID		0x1
 
 struct gamma_toc
 {
@@ -164,15 +163,11 @@ gamma_toc_merge(gamma_toc *toc, Size nbytes)
 				tail_addr = gamma_toc_addr((gamma_toc *)toc, tail_entry);
 				target_addr = gamma_toc_addr((gamma_toc *)toc, target_entry);
 
-				memcpy(target_addr, tail_addr,
-						tail_entry->values_nbytes + tail_entry->isnull_nbytes);
+				memcpy(target_addr, tail_addr, tail_entry->nbytes);
 
 				target_entry->relid = tail_entry->relid;
 				target_entry->rgid = tail_entry->rgid;
 				target_entry->attno = tail_entry->attno;
-				target_entry->dim = tail_entry->dim;
-				target_entry->values_nbytes = tail_entry->values_nbytes;
-				target_entry->isnull_nbytes = tail_entry->isnull_nbytes;
 
 				move = true;
 
@@ -258,13 +253,10 @@ gamma_toc_addr(gamma_toc *toc, gamma_toc_entry *entry)
 }
 
 bool
-gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno, uint32 *dim,
-				char **data, Size *values_nbytes, bool **nulls, Size *isnull_nbytes)
+gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno, gamma_buffer_cv *cv)
 {
-	uint32		nentry;
-	uint32		i;
-
-	Size align_v_nbytes;
+	uint32 nentry;
+	uint32 i;
 
 	nentry = toc->toc_nentry;
 	pg_read_barrier();
@@ -275,27 +267,37 @@ gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno, uint32 *dim,
 			toc->toc_entry[i].rgid == rgid &&
 			toc->toc_entry[i].attno == attno)
 		{
+			char *cv_begin = NULL;
+			gamma_toc_header *cv_header;
+
+			uint32 align_v_nbytes;
+
 			/* the cv in toc is invalid(eg. it is truncated) */
 			if (toc->toc_entry[i].flags & TOC_ENTRY_INVALID)
 				continue;
 
-			align_v_nbytes = BUFFERALIGN(toc->toc_entry[i].values_nbytes);
+			cv_begin = ((char *)toc) + toc->toc_entry[i].values_offset;
+			cv_header = (gamma_toc_header *) cv_begin;
+			cv_begin += sizeof(gamma_toc_header);
 
-			*data = ((char *)toc) + toc->toc_entry[i].values_offset;
-			*values_nbytes = toc->toc_entry[i].values_nbytes;
+			align_v_nbytes = BUFFERALIGN(cv_header->values_nbytes);
+			cv->values = (char *) cv_begin;
+			cv->values_nbytes = cv_header->values_nbytes;
 
-			if (toc->toc_entry[i].isnull_nbytes != 0)
+			if (cv_header->isnull_nbytes != 0)
 			{
-				*nulls = (bool *)(((char *)data) + align_v_nbytes);
-				*isnull_nbytes = toc->toc_entry[i].isnull_nbytes;
+				cv->isnull = (bool *)(cv_begin + align_v_nbytes);
+				cv->isnull_nbytes = cv_header->isnull_nbytes;
 			}
 			else
 			{
-				*nulls = NULL;
-				*isnull_nbytes = 0;
+				cv->isnull = NULL; 
+				cv->isnull_nbytes = 0;
 			}
 
-			*dim = toc->toc_entry[i].dim;
+			cv->dim = cv_header->dim;
+			cv->min = (char *) cv_header->min;
+			cv->max = (char *) cv_header->max;
 			return true;
 		}
 	}

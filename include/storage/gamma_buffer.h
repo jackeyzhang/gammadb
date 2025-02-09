@@ -19,10 +19,8 @@
 #include "storage/gamma_toc.h"
 
 extern void gamma_buffer_startup(void);
-extern bool gamma_buffer_add_cv(Oid relid, Oid rgid, int attno, uint32 dim,
-		char *data, Size values_nbytes, bool *nulls, Size isnull_nbytes);
-extern bool gamma_buffer_get_cv(Oid relid, Oid rgid, int16 attno, uint32 *dim,
-			char **data, Size *values_nbytes, bool **nulls, Size *isnull_nbytes);
+extern bool gamma_buffer_add_cv(Oid relid, Oid rgid, int16 attno, gamma_buffer_cv *cv);
+extern bool gamma_buffer_get_cv(Oid relid, Oid rgid, int16 attno, gamma_buffer_cv *cv);
 extern void gamma_buffer_invalid_rel(Oid relid);
 
 #endif

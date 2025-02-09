@@ -20,19 +20,41 @@
 #include "postgres.h"
 #include "port/atomics.h"
 
+#define TOC_ENTRY_INVALID		0x1
+#define TOC_ENTRY_HAS_MIN		0x2
+#define TOC_ENTRY_HAS_MAX		0x4
+
 typedef struct gamma_toc_entry
 {
 	Oid relid;
 	Oid rgid;
 	int16 attno;
 	int16 flags;			/* for memory align, nouse now */
-	Size nbytes;			/* toc memory size */
 	Size values_offset;		/* Offset, in bytes, from TOC start */
+	Size nbytes;
+} gamma_toc_entry;
+
+#define GAMMA_MINMAX_LENGTH (16)
+
+typedef struct gamma_toc_header
+{
 	Size values_nbytes;		/* values array size (not aligned) */
 	Size isnull_nbytes;		/* nulls array size (not aligned) */
 	Size dim;
-	pg_atomic_uint32 state;
-} gamma_toc_entry;
+	char min[GAMMA_MINMAX_LENGTH];
+	char max[GAMMA_MINMAX_LENGTH];
+} gamma_toc_header;
+
+typedef struct gamma_buffer_cv
+{
+	uint32 dim;
+	char *min; /* pointer */
+	char *max; /* pointer */
+	Size values_nbytes;
+	Size isnull_nbytes;
+	char *values;
+	bool *isnull;
+} gamma_buffer_cv;
 
 typedef struct gamma_toc gamma_toc;
 
@@ -40,12 +62,8 @@ typedef struct gamma_toc gamma_toc;
 
 extern gamma_toc *gamma_toc_create(uint64 magic, void *address, Size nbytes);
 extern gamma_toc *gamma_toc_attach(uint64 magic, void *address);
-extern bool gamma_toc_insert(gamma_toc *toc, Oid relid, Oid rgid, int16 attno,
-				uint32 dim, char *data, Size values_nbytes,
-				bool *nulls, Size isnull_nbytes);
 extern bool gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno,
-				uint32 *dim, char **data, Size *values_nbytes,
-				bool **nulls, Size *isnull_nbytes);
+				gamma_buffer_cv *cv);
 
 extern void gamma_toc_invalid_rel(gamma_toc *toc, Oid relid);
 extern void gamma_toc_invalid_rg(gamma_toc *toc, Oid relid, uint32 rgid);
