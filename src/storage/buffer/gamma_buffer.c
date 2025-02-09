@@ -26,36 +26,38 @@ gamma_buffer_startup(void)
 }
 
 bool
-gamma_buffer_add_cv(Oid relid, Oid rgid, int attno,
-		uint32 dim, char *data, Size values_nbytes, bool *nulls, Size isnull_nbytes)
+gamma_buffer_add_cv(Oid relid, Oid rgid, int16 attno, gamma_buffer_cv *cv)
 {
 	volatile gamma_toc *toc = gamma_buffer_dsm_toc();
 	gamma_toc_entry *entry;
+	gamma_toc_header header;
+	gamma_buffer_cv exist_cv = {0};
 	char *entry_addr = NULL;
 
+	uint32 dim = cv->dim;
+	char *data = cv->values;
+	bool *nulls = cv->isnull;
+	Size values_nbytes = cv->values_nbytes;
+	Size isnull_nbytes = cv->isnull_nbytes;
+
 	Size nbytes;
-	char *lookup_values;
-	bool *lookup_isnull;
-	Size lookup_v_nbytes;
-	Size lookup_n_nbytes;
-	uint32 lookup_dim;
 
 	Size align_v_nbytes;
 	Size align_n_nbytes;
+	Size align_h_nbytes;
 
 	gamma_toc_lock_acquire_x((gamma_toc *)toc);
 
 	align_v_nbytes = BUFFERALIGN(values_nbytes);
 	align_n_nbytes = BUFFERALIGN(isnull_nbytes);
-	nbytes = align_v_nbytes + align_n_nbytes;
+	align_h_nbytes = BUFFERALIGN(sizeof(gamma_toc_header));
+	nbytes = align_v_nbytes + align_n_nbytes + align_h_nbytes;
 
 	/* check if the other session have been insert the ColumnVector */
-	if (gamma_toc_lookup((gamma_toc *)toc, relid, rgid, attno, &lookup_dim,
-				&lookup_values, &lookup_v_nbytes,
-				&lookup_isnull, &lookup_n_nbytes))
+	if (gamma_toc_lookup((gamma_toc *)toc, relid, rgid, attno, &exist_cv))
 	{
-		Assert(values_nbytes == lookup_v_nbytes);
-		Assert(isnull_nbytes == lookup_n_nbytes);
+		Assert(values_nbytes == exist_cv.values_nbytes);
+		Assert(isnull_nbytes == exist_cv.isnull_nbytes);
 		gamma_toc_lock_release((gamma_toc *)toc);
 		return true;
 	}
@@ -68,17 +70,33 @@ gamma_buffer_add_cv(Oid relid, Oid rgid, int attno,
 		return false;
 	}
 
-	entry_addr = gamma_toc_addr((gamma_toc *)toc, entry);
-	memcpy(entry_addr, data, values_nbytes);
-	if (nulls != NULL)
-		memcpy(entry_addr + align_v_nbytes, nulls, isnull_nbytes);
-
 	entry->relid = relid;
 	entry->rgid = rgid;
 	entry->attno = attno;
-	entry->dim = dim;
-	entry->values_nbytes = values_nbytes;
-	entry->isnull_nbytes = isnull_nbytes;
+	entry->flags = 0;
+
+	entry_addr = gamma_toc_addr((gamma_toc *)toc, entry);
+
+	header.dim = dim;
+	header.values_nbytes = values_nbytes;
+	header.isnull_nbytes = isnull_nbytes;
+	if (cv->min != NULL)
+	{
+		entry->flags = entry->flags | TOC_ENTRY_HAS_MIN;
+		memcpy(header.min, cv->min, GAMMA_MINMAX_LENGTH);
+	}
+
+	if (cv->max != NULL)
+	{
+		entry->flags = entry->flags | TOC_ENTRY_HAS_MAX;
+		memcpy(header.max, cv->max, GAMMA_MINMAX_LENGTH);
+	}
+
+	memcpy(entry_addr, &header, sizeof(gamma_toc_header));
+	entry_addr += sizeof(gamma_toc_header);
+	memcpy(entry_addr, data, values_nbytes);
+	if (nulls != NULL)
+		memcpy(entry_addr + align_v_nbytes, nulls, isnull_nbytes);
 
 	gamma_toc_lock_release((gamma_toc *)toc);
 
@@ -86,14 +104,12 @@ gamma_buffer_add_cv(Oid relid, Oid rgid, int attno,
 }
 
 bool
-gamma_buffer_get_cv(Oid relid, Oid rgid, int16 attno, uint32 *dim,
-			char **data, Size *values_nbytes, bool **nulls, Size *isnull_nbytes)
+gamma_buffer_get_cv(Oid relid, Oid rgid, int16 attno, gamma_buffer_cv *cv)
 {
 	bool result = false;
 	gamma_toc *toc = gamma_buffer_dsm_toc();
 	gamma_toc_lock_acquire_s(toc);
-	result = gamma_toc_lookup(toc, relid, rgid, attno, dim, data, values_nbytes,
-							nulls, isnull_nbytes);
+	result = gamma_toc_lookup(toc, relid, rgid, attno, cv);
 	gamma_toc_lock_release(toc);
 	return result;
 }

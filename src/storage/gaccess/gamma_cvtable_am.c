@@ -22,9 +22,11 @@
 #include "catalog/indexing.h"
 #include "executor/execdebug.h"
 #include "executor/nodeSeqscan.h"
+#include "fmgr.h"
 #include "storage/bufmgr.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
+#include "utils/lsyscache.h"
 #include "utils/rel.h"
 
 #include "storage/gamma_buffer.h"
@@ -81,38 +83,82 @@ cvtable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 }
 
 static bool
+gamma_cvtable_make_minmax(CVScanDesc cvscan, Relation baserel, int16 attno,
+		Datum datum_data, char *cstring_data)
+{
+	Oid typInput;
+	Oid typIOParam;
+	int32 len_data = 0;
+
+	char *cstring_datum_data;
+	Form_pg_attribute base_attr = &RelationGetDescr(cvscan->base_rel)->attrs[attno - 1];
+
+	len_data = VARSIZE_ANY_EXHDR(DatumGetPointer(datum_data));
+	cstring_datum_data = text_to_cstring((text *)DatumGetPointer(datum_data));
+
+	len_data = len_data > (GAMMA_MINMAX_LENGTH - 1) ?
+		(GAMMA_MINMAX_LENGTH - 1) : len_data;
+
+	if (base_attr->attlen > 0)
+	{
+		getTypeInputInfo(base_attr->atttypid, &typInput, &typIOParam);
+		datum_data = OidInputFunctionCall(typInput, cstring_datum_data, typIOParam, -1);
+	}
+
+	if (base_attr->attlen > 0 && base_attr->attbyval)
+	{
+		memcpy(cstring_data, &datum_data, sizeof(Datum));
+	}
+	else if (base_attr->attlen > 0)
+	{
+		if (base_attr->attlen > GAMMA_MINMAX_LENGTH)
+		{
+			memcpy(cstring_data, DatumGetPointer(datum_data), GAMMA_MINMAX_LENGTH);
+		}
+		else
+		{
+			memcpy(cstring_data, DatumGetPointer(datum_data), base_attr->attlen);
+		}
+	}
+	else
+	{
+		cstring_data[0] = len_data;
+		memcpy(&cstring_data[1], cstring_datum_data, len_data);
+	}
+
+	return true;
+}
+
+static bool
 cvtable_load_cv(CVScanDesc cvscan, uint32 rgid, int16 attno)
 {
 	static SysScanDesc sscan;
 	static ScanKeyData key[2];
 	HeapTuple	tuple;
 	TupleDesc cv_desc = RelationGetDescr(cvscan->cv_rel);
-	//TupleDesc base_desc = RelationGetDescr(cvscan->base_rel);
-	//bool exists = false;
-	uint32 rows;
 	bool non_nulls = false;
+	bool min_null = false;
+	bool max_null = false;
 	
 	bool isnull = false;
 	Datum datum_rows;
 	Datum datum_data;
 	Datum datum_nulls;
-	//Datum datum_rgid;
-	//Datum datum_attno;
+	Datum datum_min;
+	Datum datum_max;
 
 	text *text_data;
-	//uint32 data_len = 0;
 	text *text_nulls = NULL;
-	//int32 attno;
 
-	char *buffer_values = NULL;
-	bool *buffer_isnull = NULL;
-	Size buffer_v_len = 0;
-	Size buffer_n_len = 0;
+	gamma_buffer_cv write_buffer_cv;
+	gamma_buffer_cv read_buffer_cv;
 
 	if (!gamma_buffer_get_cv(RelationGetRelid(cvscan->base_rel),
-							rgid, attno, &rows, &buffer_values, &buffer_v_len,
-							&buffer_isnull, &buffer_n_len))
+							rgid, attno, &read_buffer_cv));
 	{
+		char cstring_min[GAMMA_MINMAX_LENGTH];
+		char cstring_max[GAMMA_MINMAX_LENGTH];
+
 		ScanKeyInit(&key[0],
 				Anum_gamma_rowgroup_rgid,
 				BTEqualStrategyNumber, F_OIDEQ,
@@ -135,46 +181,61 @@ cvtable_load_cv(CVScanDesc cvscan, uint32 rgid, int16 attno)
 		}
 
 		/* Extract values */
-		//datum_rgid = heap_getattr(tuple, Anum_gamma_rowgroup_rgid, cv_desc, &isnull);
-		//datum_attno = heap_getattr(tuple, Anum_gamma_rowgroup_attno, cv_desc, &isnull);
+		datum_min = heap_getattr(tuple, Anum_gamma_rowgroup_min, cv_desc, &min_null);
+		datum_max = heap_getattr(tuple, Anum_gamma_rowgroup_max, cv_desc, &max_null);
 		datum_rows = heap_getattr(tuple, Anum_gamma_rowgroup_count, cv_desc, &isnull);
 		datum_data = heap_getattr(tuple, Anum_gamma_rowgroup_values, cv_desc, &isnull);
 		datum_nulls = heap_getattr(tuple, Anum_gamma_rowgroup_nulls, cv_desc, &non_nulls);
 
-		//rgid = DatumGetObjectId(datum_rgid);
-		//attno = DatumGetInt32(datum_attno);
-		rows = DatumGetInt32(datum_rows);
+		write_buffer_cv.dim = DatumGetInt32(datum_rows);
+
 		text_data = DatumGetTextPP(datum_data);  
-		buffer_values = text_to_cstring(text_data);
-		buffer_v_len = VARSIZE_ANY_EXHDR(text_data);
+		write_buffer_cv.values = text_to_cstring(text_data);
+		write_buffer_cv.values_nbytes = VARSIZE_ANY_EXHDR(text_data);
 
 		if (!non_nulls)
 		{
 			text_nulls = DatumGetTextPP(datum_nulls);
-			buffer_isnull = (bool *)text_to_cstring(text_nulls);
-			buffer_n_len = rows;
+			write_buffer_cv.isnull = (bool *)text_to_cstring(text_nulls);
+			write_buffer_cv.isnull_nbytes = DatumGetInt32(datum_rows);
 		}
 		else
 		{
-			buffer_isnull = NULL;
-			buffer_n_len = 0;
-		}	
+			write_buffer_cv.isnull = NULL;
+			write_buffer_cv.isnull_nbytes = 0;
+		}
+
+		if (!min_null)
+		{
+			gamma_cvtable_make_minmax(cvscan, cvscan->base_rel, attno,
+					datum_min, cstring_min);
+			write_buffer_cv.min = cstring_min;
+		}
+		else
+			write_buffer_cv.min = NULL;
+
+		if (!max_null)
+		{
+			gamma_cvtable_make_minmax(cvscan, cvscan->base_rel, attno,
+					datum_max, cstring_max);
+			write_buffer_cv.max = cstring_max;
+		}
+		else
+			write_buffer_cv.max = NULL;
 
 		systable_endscan(sscan);
 
 		if (gamma_buffer_add_cv(RelationGetRelid(cvscan->base_rel),
-					rgid, attno, rows,
-					buffer_values, buffer_v_len, buffer_isnull, buffer_n_len))
+					rgid, attno, &write_buffer_cv));
 		{
-			if (buffer_values != NULL)
-				pfree(buffer_values);
+			if (write_buffer_cv.values != NULL)
+				pfree(write_buffer_cv.values);
 
-			if (!non_nulls && buffer_isnull != NULL)
-				pfree(buffer_isnull);
+			if (!non_nulls && write_buffer_cv.isnull != NULL)
+				pfree(write_buffer_cv.isnull);
 
 			gamma_buffer_get_cv(RelationGetRelid(cvscan->base_rel),
-					rgid, attno, &rows,
-					&buffer_values, &buffer_v_len, &buffer_isnull, &buffer_n_len);
+					rgid, attno, &read_buffer_cv);
 		}
 
 		if ((void *)text_data != DatumGetPointer(datum_data))
@@ -184,8 +245,10 @@ cvtable_load_cv(CVScanDesc cvscan, uint32 rgid, int16 attno)
 			pfree(text_nulls);
 	}
 
-	gamma_cv_fill_data(&cvscan->rg->cvs[attno - 1], buffer_values,
-			buffer_v_len, buffer_isnull, rows);
+	/* length of read_buffer_cv.isnull is same as read_buffer_cv.dim */
+	gamma_cv_fill_data(&cvscan->rg->cvs[attno - 1],
+			read_buffer_cv.values, read_buffer_cv.values_nbytes,
+			read_buffer_cv.isnull, read_buffer_cv.dim);
 
 	return true;
 }
