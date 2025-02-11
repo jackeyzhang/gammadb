@@ -75,7 +75,8 @@ OBJS += src/storage/gstore/gamma_meta.o \
 OBJS += src/storage/gaccess/ctable_am.o \
 		src/storage/gaccess/ctable_dml.o \
 		src/storage/gaccess/ctable_vec_am.o \
-		src/storage/gaccess/gamma_cvtable_am.o
+		src/storage/gaccess/gamma_cvtable_am.o \
+		src/storage/gaccess/gamma_scankeys.o
 
 #src/tcop
 OBJS += src/tcop/gamma_utility.o

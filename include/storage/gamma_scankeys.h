@@ -13,26 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GAMMA_VEC_TABLESCAN_H
-#define GAMMA_VEC_TABLESCAN_H
+#ifndef GAMMA_SCANKEYS_H
+#define GAMMA_SCANKEYS_H
 
-#include "access/skey.h"
+#include "executor/gamma_vec_tablescan.h"
 #include "nodes/execnodes.h"
-#include "nodes/extensible.h"
-#include "nodes/plannodes.h"
-
 #include "storage/gamma_cvtable_am.h"
 
-typedef struct VecSeqScanState
-{
-	SeqScanState sss;
-	GammaScanKey scankeys;
-	uint16 sk_count;
-	bool scan_over;
-}VecSeqScanState;
+extern void gamma_sk_init_scankeys(SeqScanState *scanstate, SeqScan *node);
+extern bool gamma_sk_set_scankeys(CVScanDesc cvscan, SeqScanState *scanstate);
+extern bool gamma_sk_run_scankeys(CVScanDesc cvscan, uint32 rgid);
+extern bool gamma_sk_attr_check(CVScanDesc cvscan, AttrNumber attno,
+									char *min, char *max);
 
-extern const CustomPathMethods* gamma_vec_tablescan_path_methods(void);
-extern const CustomExecMethods* gamma_vec_tablescan_exec_methods(void);
-extern void gamma_vec_tablescan_init(void);
-
-#endif   /* GAMMA_VEC_TABLESCAN_H */
+#endif /* GAMMA_SCANKEYS_H */
