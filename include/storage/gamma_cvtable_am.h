@@ -23,6 +23,33 @@
 #include "executor/vector_tuple_slot.h"
 #include "storage/gamma_rg.h"
 
+/* for gamma scan keys (min/max filters) */
+typedef enum GammaSKStrategy
+{
+	GammaSKNone = 0,
+	GammaSKLess = 1,
+	GammaSKLessEqual,
+	GammaSKEqual,
+	GammaSKGreaterEqual,
+	GammaSKGreater,
+	GammaSKNotEqual,
+} GammaSKStrategy;
+
+typedef bool (*gamma_sk_cmp_callback) (GammaSKStrategy strategy, Datum con,
+									char *min, char *max);
+
+typedef struct GammaScanKeyData
+{
+	AttrNumber sk_attno;
+	GammaSKStrategy sk_strategy;
+	Oid sk_collation;
+	Datum sk_argument;
+	gamma_sk_cmp_callback sk_cmp;
+} GammaScanKeyData;
+
+typedef GammaScanKeyData *GammaScanKey;
+
+/* for [parallel] scan */
 typedef struct RowGroupCtableScanDescData
 {
 	pg_atomic_uint32 max_rg_id;
@@ -59,11 +86,16 @@ typedef struct CVScanDescData {
 	/* projection info*/
 	Bitmapset *bms_proj;
 
+	/* columnar scankeys */
+	GammaScanKey scankeys;
+	uint16 sk_count;
+	List *sk_attno_list;
+	bool *sk_preloaded;
+
 	bool inited;
 } CVScanDescData;
 
 typedef struct CVScanDescData *CVScanDesc;
-
 
 extern CVScanDesc cvtable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 		struct ScanKeyData * key,
@@ -75,6 +107,8 @@ extern bool cvtable_loadnext_rg(CVScanDesc cvscan, ScanDirection direction);
 extern bool cvtable_load_rg(CVScanDesc cvscan, uint32 rgid);
 extern bool cvtable_load_rowslot(CVScanDesc cvscan, uint32 rgid,
 									int32 rowid, TupleTableSlot *slot);
+extern bool cvtable_load_scankey_cv(CVScanDesc cvscan, uint32 rgid,
+									AttrNumber attno, bool sk_check);
 extern void cvtable_rescan(CVScanDesc scan, struct ScanKeyData * key,
 		bool set_params, bool allow_strat, bool allow_sync,
 		bool allow_pagemode);

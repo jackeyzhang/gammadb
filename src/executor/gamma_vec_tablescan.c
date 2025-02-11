@@ -35,6 +35,7 @@
 #include "executor/vector_tuple_slot.h"
 #include "optimizer/gamma_converter.h"
 #include "storage/ctable_am.h"
+#include "storage/gamma_scankeys.h"
 #include "utils/gamma_cache.h"
 #include "utils/utils.h"
 #include "utils/vdatum/vdatum.h"
@@ -152,18 +153,16 @@ vec_plan_tablescan(PlannerInfo *root,
 				scan_tlist = temp->targetlist = build_physical_tlist(root, rel);
 			}
 		}
-
-		//tlist = scan_tlist;
 	}
 
 	cscan->scan.plan.parallel_aware = best_path->path.parallel_aware;
 	cscan->scan.plan.targetlist = (List *) copyObject(tlist);
 	cscan->scan.plan.qual = NIL;
-	cscan->scan.plan.lefttree = NULL;//linitial(custom_plans);
+	cscan->scan.plan.lefttree = NULL;
 	cscan->scan.scanrelid = 0;
 	cscan->custom_scan_tlist = (List *)copyObject(scan_tlist); //TODO:tlist;
 
-	cscan->custom_plans = custom_plans;//(List *)gamma_vec_convert_plan((Node*)custom_plans);
+	cscan->custom_plans = custom_plans;
 
 	cscan->methods = &vec_tablescan_scan_methods;
 
@@ -235,17 +234,17 @@ vec_tablescan_begin(CustomScanState *node, EState *estate, int eflags)
 		if (vstate->css.ss.ps.ps_ProjInfo != NULL)
 		{
 
-			TupleDesc result_desc = vstate->css.ss.ps.ps_ResultTupleSlot->tts_tupleDescriptor;
+			TupleDesc result_desc =
+				vstate->css.ss.ps.ps_ResultTupleSlot->tts_tupleDescriptor;
 			en_vec_tupledesc(result_desc);
 			vstate->css.ss.ps.ps_ResultTupleSlot = NULL;
 
 			VecExecConditionalAssignProjectionInfo(&vstate->css.ss.ps,
-					vstate->seqstate->sss.ss.ps.ps_ResultTupleSlot->tts_tupleDescriptor,
-					((Scan *) plan)->scanrelid);
+				vstate->seqstate->sss.ss.ps.ps_ResultTupleSlot->tts_tupleDescriptor,
+				((Scan *) plan)->scanrelid);
 		}
 		else
 		{
-			//node->ss.ps.ps_ResultTupleDesc = vstate->seqstate->sss.ss.ps.ps_ResultTupleDesc;
 			node->ss.ps.scanops = vstate->seqstate->sss.ss.ps.scanops;
 			node->ss.ps.resultops = vstate->seqstate->sss.ss.ps.resultops;
 			vstate->css.ss.ps.ps_ResultTupleSlot =
@@ -322,6 +321,8 @@ vec_tablescan_execinit(SeqScan *node, EState *estate, int eflags)
 	 */
 	ExecInitResultTypeTL(&scanstate->ss.ps);
 	VecExecAssignScanProjectionInfo(&scanstate->ss);
+
+	gamma_sk_init_scankeys(scanstate, node);
 
 	/* Use BoolExpr instead of qual list */
 	if (((Plan *) node)->qual != NULL && IsA(((Plan *) node)->qual, List))

@@ -707,17 +707,21 @@ gamma_meta_insert_cv(Relation rel, Relation cvrel,
 
 	if (has_minmax)
 	{
-		Oid typInput;
-		bool typIsVarlena;
-		char *cs_min;
-		char *cs_max;
-
-		getTypeOutputInfo(typid, &typInput, &typIsVarlena);
-		cs_min = OidOutputFunctionCall(typInput, min);
-		cs_max = OidOutputFunctionCall(typInput, max);
-
-		t_min = cstring_to_text_with_len(cs_min, strlen(cs_min));
-		t_max = cstring_to_text_with_len(cs_max, strlen(cs_max));
+		if (attr->attlen > 0 && attr->attbyval)
+		{
+			t_min = cstring_to_text_with_len((char *)&min, sizeof(Datum));
+			t_max = cstring_to_text_with_len((char *)&max, sizeof(Datum));
+		}
+		else if (attr->attlen > 0)
+		{
+			t_min = cstring_to_text_with_len(DatumGetPointer(min), attr->attlen);
+			t_max = cstring_to_text_with_len(DatumGetPointer(max), attr->attlen);
+		}
+		else
+		{
+			t_min = (text *)DatumGetPointer(min);
+			t_max = (text *)DatumGetPointer(max);
+		}
 	}
 
 	memset(values, 0, sizeof(values));

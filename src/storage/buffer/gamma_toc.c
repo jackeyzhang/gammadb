@@ -168,6 +168,7 @@ gamma_toc_merge(gamma_toc *toc, Size nbytes)
 				target_entry->relid = tail_entry->relid;
 				target_entry->rgid = tail_entry->rgid;
 				target_entry->attno = tail_entry->attno;
+				target_entry->flags = tail_entry->flags;
 
 				move = true;
 
@@ -296,8 +297,16 @@ gamma_toc_lookup(gamma_toc *toc, Oid relid, Oid rgid, int16 attno, gamma_buffer_
 			}
 
 			cv->dim = cv_header->dim;
-			cv->min = (char *) cv_header->min;
-			cv->max = (char *) cv_header->max;
+			if (toc->toc_entry[i].flags & TOC_ENTRY_HAS_MIN)
+				cv->min = (char *) cv_header->min;
+			else
+				cv->min = NULL;
+
+			if (toc->toc_entry[i].flags & TOC_ENTRY_HAS_MAX)
+				cv->max = (char *) cv_header->max;
+			else
+				cv->max = NULL;
+
 			return true;
 		}
 	}

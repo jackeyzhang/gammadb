@@ -32,6 +32,7 @@
 #include "executor/gamma_vec_tablescan.h"
 #include "executor/vec_exec_scan.h"
 #include "executor/vector_tuple_slot.h"
+#include "storage/gamma_scankeys.h"
 #include "storage/ctable_vec_am.h"
 #include "utils/utils.h"
 #include "utils/vdatum/vdatum.h"
@@ -87,6 +88,7 @@ vec_ctablescan_access_seqnext(ScanState *node)
 
 		vscandesc->cvscan->bms_proj = bms_proj;
 
+		gamma_sk_set_scankeys(vscandesc->cvscan, state);
 	}
 
 	/* return the last batch. */
