@@ -683,7 +683,7 @@ select unique2 from onek2 where unique2 = 11 and stringu1 < 'C';
                       QUERY PLAN                       
 -------------------------------------------------------
  Seq Scan on onek2
-   Filter: ((stringu1 < 'C'::text) AND (unique2 = 11))
+   Filter: ((unique2 = 11) AND (stringu1 < 'C'::text))
 (2 rows)
 
 select unique2 from onek2 where unique2 = 11 and stringu1 < 'C';

@@ -56,6 +56,7 @@
 #include "utils/snapmgr.h"
 #include "utils/spccache.h"
 
+#include "commands/gamma_vacuum.h"
 #include "executor/gamma_merge.h"
 #include "storage/ctable_dml.h"
 #include "storage/gamma_cvtable_am.h"
@@ -113,6 +114,23 @@ ctable_vacuum_rel(Relation rel, VacuumParams * params,
 	BlockNumber nblocks;
 
 	heap_vacuum_rel(rel, params, bstrategy);
+
+	/*
+	 * Use VACOPT_GAMMA_ANALYZE to distinguish manual-analyze and autoanalyze.
+	 * If it is because autoanalyze enters here, we check whether autoanalyze
+	 * needs to be done, and block the system's autoanalyze.
+	 */
+	if (!(params->options & VACOPT_GAMMA_ANALYZE) &&
+			(
+			 params->options & VACOPT_ANALYZE ||
+			 gamma_autoanalyze_needed(RelationGetRelid(rel))
+			 )
+	   )
+	{
+		gamma_autoanalyze_rel(RelationGetRelid(rel), params, bstrategy);
+		if (params->options & VACOPT_ANALYZE)
+			params->options = params->options & (~VACOPT_ANALYZE);
+	}
 
 	/* the delta table need to truncate or clean */
 	nblocks = RelationGetNumberOfBlocks(rel);

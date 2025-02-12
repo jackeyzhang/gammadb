@@ -622,7 +622,7 @@ EXPLAIN (COSTS OFF) SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, CO
                                  Sort Key: searchphrase COLLATE "default" USING <
                                  ->  Custom Scan (gamma_vec_tablescan)
                                        ->  Seq Scan on hits
-                                             Filter: ((title OPERATOR(pg_catalog.~~) '%Google%'::text) AND (url OPERATOR(pg_catalog.!~~) '%.google.%'::text) AND (searchphrase OPERATOR(pg_catalog.<>) ''::text))
+                                             Filter: ((title OPERATOR(pg_catalog.~~) '%Google%'::text) AND (searchphrase OPERATOR(pg_catalog.<>) ''::text) AND (url OPERATOR(pg_catalog.!~~) '%.google.%'::text))
 (12 rows)
 
 SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, COUNT(DISTINCT UserID) FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
@@ -832,16 +832,16 @@ EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip   | c | sum |          avg          
 ---------------------+-------------+---+-----+-----------------------
- 8369463583395906354 |  1395825730 | 1 |   0 | 1368.0000000000000000
- 9151335645112603744 |   847745795 | 1 |   0 | 1638.0000000000000000
- 5432430776287317993 |  1252089865 | 1 |   1 | 1638.0000000000000000
- 5792507967286782182 |  1101999299 | 1 |   0 | 2038.0000000000000000
- 8599202260727970287 | -1857888644 | 1 |   1 | 1368.0000000000000000
  5788394618888602532 |  1944363507 | 1 |   0 | 1828.0000000000000000
- 6641365122658984572 |    96790945 | 1 |   1 | 1917.0000000000000000
  7838461643255590302 |   915688002 | 1 |   1 |  582.0000000000000000
  8107832680158884727 | -1991775594 | 1 |   1 | 1638.0000000000000000
- 6494863097791065214 | -1426977644 | 1 |   1 | 2038.0000000000000000
+ 7539370279408310014 |  1655548433 | 1 |   0 | 1638.0000000000000000
+ 7375579512685512563 |  1952286433 | 1 |   0 | 1828.0000000000000000
+ 8536527937548941165 |  1735595921 | 1 |   1 | 1638.0000000000000000
+ 6591337964597835315 |  2089190631 | 1 |   0 | 1828.0000000000000000
+ 9014555688819975520 |  1293267909 | 1 |   0 |  253.0000000000000000
+ 7676311040847005907 |  2095489375 | 1 |   1 |  661.0000000000000000
+ 9151335645112603744 |   847745795 | 1 |   0 | 1638.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
@@ -967,7 +967,7 @@ EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID 
                      Group Key: url
                      ->  Custom Scan (gamma_vec_tablescan)
                            ->  Seq Scan on hits
-                                 Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (url OPERATOR(pg_catalog.<>) ''::text) AND (counterid OPERATOR(pg_catalog.=) 62) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                 Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (url OPERATOR(pg_catalog.<>) ''::text) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (9 rows)
 
 SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY PageViews DESC LIMIT 10;
@@ -986,7 +986,7 @@ EXPLAIN (COSTS OFF) SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterI
                      Group Key: title
                      ->  Custom Scan (gamma_vec_tablescan)
                            ->  Seq Scan on hits
-                                 Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (title OPERATOR(pg_catalog.<>) ''::text) AND (counterid OPERATOR(pg_catalog.=) 62) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                 Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (title OPERATOR(pg_catalog.<>) ''::text) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (9 rows)
 
 SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND Title <> '' GROUP BY Title ORDER BY PageViews DESC LIMIT 10;
@@ -1005,7 +1005,7 @@ EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID 
                      Group Key: url
                      ->  Custom Scan (gamma_vec_tablescan)
                            ->  Seq Scan on hits
-                                 Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (islink OPERATOR(pg_catalog.<>) 0) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (isdownload OPERATOR(pg_catalog.=) 0))
+                                 Filter: ((islink OPERATOR(pg_catalog.<>) 0) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (isdownload OPERATOR(pg_catalog.=) 0))
 (9 rows)
 
 SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND IsLink <> 0 AND IsDownload = 0 GROUP BY URL ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;
@@ -1025,7 +1025,7 @@ EXPLAIN (COSTS OFF) SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHE
                      ->  Custom Scan (gamma_vec_devector)
                            ->  Custom Scan (gamma_vec_tablescan)
                                  ->  Seq Scan on hits
-                                       Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                       Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date))
 (10 rows)
 
 SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;
@@ -1044,7 +1044,7 @@ EXPLAIN (COSTS OFF) SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits W
                ->  Sort
                      Sort Key: urlhash, eventdate
                      ->  Seq Scan on hits
-                           Filter: ((eventdate >= '07-01-2013'::date) AND (eventdate <= '07-31-2013'::date) AND (traficsourceid = ANY ('{-1,6}'::integer[])) AND (counterid = 62) AND (isrefresh = 0) AND (refererhash = '3594120000172545465'::bigint))
+                           Filter: ((counterid = 62) AND (refererhash = '3594120000172545465'::bigint) AND (isrefresh = 0) AND (traficsourceid = ANY ('{-1,6}'::integer[])) AND (eventdate >= '07-01-2013'::date) AND (eventdate <= '07-31-2013'::date))
 (9 rows)
 
 SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC LIMIT 10 OFFSET 100;
@@ -1063,7 +1063,7 @@ EXPLAIN (COSTS OFF) SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS Pa
                      Group Key: windowclientwidth, windowclientheight
                      ->  Custom Scan (gamma_vec_tablescan)
                            ->  Seq Scan on hits
-                                 Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (urlhash OPERATOR(pg_catalog.=) '2868770270353813622'::bigint))
+                                 Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (urlhash OPERATOR(pg_catalog.=) '2868770270353813622'::bigint) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (9 rows)
 
 SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC LIMIT 10 OFFSET 10000;
@@ -1084,7 +1084,7 @@ EXPLAIN (COSTS OFF) SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS Pag
                            ->  Result
                                  ->  Custom Scan (gamma_vec_tablescan)
                                        ->  Seq Scan on hits
-                                             Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
+                                             Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (11 rows)
 
 SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;
@@ -1584,8 +1584,8 @@ SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM 
  -7725127544842036118 | 21 |              |    16
  -8284294157038592779 | 11 |              |    16
  -7018910098174567459 | 57 |              |    14
- -7018910098174567459 | 56 |              |    14
  -7904263253391067902 | 34 |              |    14
+ -7018910098174567459 | 56 |              |    14
  -7918574344944952583 |  9 |              |    14
  -9158995094684353950 | 12 |              |    14
 (10 rows)
@@ -1660,7 +1660,7 @@ EXPLAIN (COSTS OFF) SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, CO
                            ->  Parallel Custom Scan (gamma_vec_devector)
                                  ->  Parallel Custom Scan (gamma_vec_tablescan)
                                        ->  Parallel Seq Scan on hits
-                                             Filter: ((title OPERATOR(pg_catalog.~~) '%Google%'::text) AND (url OPERATOR(pg_catalog.!~~) '%.google.%'::text) AND (searchphrase OPERATOR(pg_catalog.<>) ''::text))
+                                             Filter: ((title OPERATOR(pg_catalog.~~) '%Google%'::text) AND (searchphrase OPERATOR(pg_catalog.<>) ''::text) AND (url OPERATOR(pg_catalog.!~~) '%.google.%'::text))
 (13 rows)
 
 SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, COUNT(DISTINCT UserID) FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
@@ -1864,16 +1864,16 @@ EXPLAIN (COSTS OFF) SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefres
 SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10;
  searchengineid |  clientip   | c  | sum |          avg          
 ----------------+-------------+----+-----+-----------------------
-              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
              13 |  -673500741 | 20 |  12 | 1638.0000000000000000
+              2 |  1735595921 | 20 |   9 | 1638.0000000000000000
               2 |  -125068408 | 14 |   7 | 1638.0000000000000000
               2 |   743072690 | 12 |   6 | 1368.0000000000000000
               2 |  1140309473 | 12 |   6 | 1638.0000000000000000
               2 | -1555581670 | 12 |   6 | 1638.0000000000000000
               2 | -1300828471 | 10 |   5 | 1396.0000000000000000
               2 |  -181568119 | 10 |   5 | 1996.0000000000000000
-              2 |  1799458087 | 10 |   5 | 1304.0000000000000000
               2 |  1943715871 | 10 |   5 | 1638.0000000000000000
+              2 |  1515936442 | 10 |   5 | 1917.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
@@ -1925,7 +1925,7 @@ EXPLAIN (COSTS OFF) SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG
 SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
        watchid       |  clientip   | c | sum |          avg           
 ---------------------+-------------+---+-----+------------------------
- 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
+ 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
  5206346422301499756 | -1216690514 | 1 |   0 | 0.00000000000000000000
  6426257563931096930 |  2069778861 | 1 |   0 |  1087.0000000000000000
  4893108677938900633 |  1735595921 | 1 |   1 |  1638.0000000000000000
@@ -1934,7 +1934,7 @@ SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FR
  6103859743937398143 |  1088271979 | 1 |   0 |  1368.0000000000000000
  5143451110840006257 |  2139306194 | 1 |   0 |  1638.0000000000000000
  5737380807278362037 |  1714527409 | 1 |   0 |  2428.0000000000000000
- 7748237181201732285 |  1997103307 | 1 |   0 |  1638.0000000000000000
+ 6285320879265209885 |  1327608256 | 1 |   0 |  1368.0000000000000000
 (10 rows)
 
 EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
@@ -2046,7 +2046,7 @@ EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID 
                      ->  Parallel Custom Scan (gamma_vec_devector)
                            ->  Parallel Custom Scan (gamma_vec_tablescan)
                                  ->  Parallel Seq Scan on hits
-                                       Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (url OPERATOR(pg_catalog.<>) ''::text) AND (counterid OPERATOR(pg_catalog.=) 62) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                       Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (url OPERATOR(pg_catalog.<>) ''::text) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (11 rows)
 
 SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY PageViews DESC LIMIT 10;
@@ -2067,7 +2067,7 @@ EXPLAIN (COSTS OFF) SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterI
                      ->  Parallel Custom Scan (gamma_vec_devector)
                            ->  Parallel Custom Scan (gamma_vec_tablescan)
                                  ->  Parallel Seq Scan on hits
-                                       Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (title OPERATOR(pg_catalog.<>) ''::text) AND (counterid OPERATOR(pg_catalog.=) 62) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                       Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (title OPERATOR(pg_catalog.<>) ''::text) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (11 rows)
 
 SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND Title <> '' GROUP BY Title ORDER BY PageViews DESC LIMIT 10;
@@ -2088,7 +2088,7 @@ EXPLAIN (COSTS OFF) SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID 
                      ->  Parallel Custom Scan (gamma_vec_devector)
                            ->  Parallel Custom Scan (gamma_vec_tablescan)
                                  ->  Parallel Seq Scan on hits
-                                       Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (islink OPERATOR(pg_catalog.<>) 0) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (isdownload OPERATOR(pg_catalog.=) 0))
+                                       Filter: ((islink OPERATOR(pg_catalog.<>) 0) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (isdownload OPERATOR(pg_catalog.=) 0))
 (11 rows)
 
 SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND IsLink <> 0 AND IsDownload = 0 GROUP BY URL ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;
@@ -2110,7 +2110,7 @@ EXPLAIN (COSTS OFF) SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHE
                            ->  Parallel Custom Scan (gamma_vec_devector)
                                  ->  Parallel Custom Scan (gamma_vec_tablescan)
                                        ->  Parallel Seq Scan on hits
-                                             Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0))
+                                             Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date))
 (12 rows)
 
 SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;
@@ -2131,7 +2131,7 @@ EXPLAIN (COSTS OFF) SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits W
                      ->  Gather
                            Workers Planned: 7
                            ->  Parallel Seq Scan on hits
-                                 Filter: ((eventdate >= '07-01-2013'::date) AND (eventdate <= '07-31-2013'::date) AND (traficsourceid = ANY ('{-1,6}'::integer[])) AND (counterid = 62) AND (isrefresh = 0) AND (refererhash = '3594120000172545465'::bigint))
+                                 Filter: ((counterid = 62) AND (refererhash = '3594120000172545465'::bigint) AND (isrefresh = 0) AND (traficsourceid = ANY ('{-1,6}'::integer[])) AND (eventdate >= '07-01-2013'::date) AND (eventdate <= '07-31-2013'::date))
 (11 rows)
 
 SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC LIMIT 10 OFFSET 100;
@@ -2152,7 +2152,7 @@ EXPLAIN (COSTS OFF) SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS Pa
                      ->  Parallel Custom Scan (gamma_vec_devector)
                            ->  Parallel Custom Scan (gamma_vec_tablescan)
                                  ->  Parallel Seq Scan on hits
-                                       Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0) AND (urlhash OPERATOR(pg_catalog.=) '2868770270353813622'::bigint))
+                                       Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (urlhash OPERATOR(pg_catalog.=) '2868770270353813622'::bigint) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-01-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-31-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (11 rows)
 
 SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC LIMIT 10 OFFSET 10000;
@@ -2175,7 +2175,7 @@ EXPLAIN (COSTS OFF) SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS Pag
                                  ->  Result
                                        ->  Parallel Custom Scan (gamma_vec_tablescan)
                                              ->  Parallel Seq Scan on hits
-                                                   Filter: ((eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
+                                                   Filter: ((counterid OPERATOR(pg_catalog.=) 62) AND (isrefresh OPERATOR(pg_catalog.=) 0) AND (eventdate OPERATOR(pg_catalog.>=) '07-14-2013'::date) AND (eventdate OPERATOR(pg_catalog.<=) '07-15-2013'::date) AND (dontcounthits OPERATOR(pg_catalog.=) 0))
 (13 rows)
 
 SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;

@@ -83,6 +83,9 @@ typedef struct CVScanDescData {
 	RowGroup *rg;
 	uint32 offset;		/* # rows have been processed */
 
+	/* row group reset MemoryContext */
+	MemoryContext rg_context;
+
 	/* projection info*/
 	Bitmapset *bms_proj;
 

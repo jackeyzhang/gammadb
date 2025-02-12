@@ -21,6 +21,7 @@
 #include "parser/parsetree.h"
 #include "tcop/utility.h"
 
+#include "commands/gamma_vacuum.h"
 #include "storage/gamma_meta.h"
 #include "tcop/gamma_utility.h"
 
@@ -88,6 +89,35 @@ gamma_ProcessUtility(PlannedStmt *pstmt,
 							"0",
 							PGC_USERSET, PGC_S_SESSION,
 							GUC_ACTION_SAVE, true, 0, false);
+				}
+			}
+			break;
+		case T_VacuumStmt:
+			{
+				ParseState *pstate;
+				GammaVacuumContext gvcontext;
+				bool isTopLevel = (context == PROCESS_UTILITY_TOPLEVEL);
+				gvcontext.gamma_rels = NULL;
+				gvcontext.other_rels = NULL;
+				gamma_analyze_extract_rels((VacuumStmt *) parsetree, &gvcontext);
+
+				if (gvcontext.gamma_rels != NULL)
+				{
+					pstate = make_parsestate(NULL);
+					pstate->p_sourcetext = queryString;
+					pstate->p_queryEnv = queryEnv;
+					((VacuumStmt *) parsetree)->rels = gvcontext.gamma_rels;
+					gamma_exec_vacuum(pstate, (VacuumStmt *) parsetree, isTopLevel);
+
+				}
+
+				if (gvcontext.other_rels != NULL)
+				{
+					((VacuumStmt *) parsetree)->rels = gvcontext.other_rels;
+				}
+				else
+				{
+					return;
 				}
 			}
 			break;

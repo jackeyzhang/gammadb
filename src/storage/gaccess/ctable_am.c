@@ -63,6 +63,7 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 
+#include "commands/gamma_vacuum.h"
 #include "executor/gamma_copy.h"
 #include "executor/gamma_vec_tablescan.h"
 #include "executor/vector_tuple_slot.h"
@@ -917,6 +918,7 @@ ctable_scan_analyze_next_tuple(TableScanDesc scan, TransactionId OldestXmin,
 	CVScanDesc cvscan = cscan->cvscan;
 	HeapScanDesc hscan = cscan->hscan;
 
+	ExecClearTuple(slot);
 	cscan->base.rs_snapshot = snapshot;
 	cvscan->snapshot = snapshot;
 	hscan->rs_base.rs_snapshot = snapshot;
