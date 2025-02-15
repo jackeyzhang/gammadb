@@ -24,6 +24,7 @@
 typedef struct CIndexFetchCTableData
 {
 	IndexFetchHeapData base;
+	IndexFetchHeapData *delta_scan;
 	TupleTableSlot *heapslot; /* for heap fetch slot */
 	Bitmapset *bms_proj;
 	bool indexonlyscan;

@@ -18,6 +18,7 @@
 
 
 #include "storage/ctable_vec_am.h"
+#include "storage/gamma_meta.h"
 
 
 bool
@@ -67,6 +68,23 @@ vec_ctable_getnextslot(TableScanDesc scan, ScanDirection direction,
 	return true;
 }
 
+static HeapScanDesc
+gamma_delta_beginscan(Relation rel, Snapshot snapshot, int nkeys,
+		struct ScanKeyData * key,
+		ParallelTableScanDesc parallel_scan,
+		uint32 flags)
+{
+	HeapScanDesc deltascan;
+	Relation delta_rel;
+	Oid delta_rel_oid = gamma_meta_get_delta_table_rel(rel);
+
+	delta_rel = table_open(delta_rel_oid, AccessShareLock);
+	deltascan = (HeapScanDesc)heap_beginscan(delta_rel, snapshot, nkeys,
+												key, parallel_scan, flags);
+
+	return deltascan;
+}
+
 TableScanDesc 
 vec_ctable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 		struct ScanKeyData * key,
@@ -74,9 +92,6 @@ vec_ctable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 		uint32 flags) 
 {
 	CTableScanDesc scan;
-	HeapScanDesc hscan;
-
-	//RelationIncrementReferenceCount(rel);
 
 #if PG_VERSION_NUM > 170000
 	/* ANALYZE need to init read stream (in HeapScanDesc)*/
@@ -92,7 +107,7 @@ vec_ctable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 	scan->base.rs_flags = flags;
 	scan->base.rs_parallel = parallel_scan;
 
-	scan->hscan = hscan = (HeapScanDesc)heap_beginscan(rel, snapshot, nkeys,
+	scan->hscan = (HeapScanDesc)gamma_delta_beginscan(rel, snapshot, nkeys,
 												key, parallel_scan, flags);
 	scan->cvscan = cvtable_beginscan(rel, snapshot, nkeys, key,
 												parallel_scan, flags);
@@ -109,10 +124,12 @@ void
 vec_ctable_end_scan(TableScanDesc scan)
 {
 	CTableScanDesc cscan = (CTableScanDesc)scan;
+	TableScanDesc deltascan = (TableScanDesc) cscan->hscan;
 
 	ExecDropSingleTupleTableSlot(cscan->buf_slot);
 
-	heap_endscan((TableScanDesc) cscan->hscan);
+	table_close(deltascan->rs_rd, NoLock);
+	heap_endscan(deltascan);
 	cvtable_endscan(cscan->cvscan);
 
 	pfree(cscan);

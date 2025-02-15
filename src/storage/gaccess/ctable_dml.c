@@ -85,8 +85,14 @@ ctable_delete(Relation relation, ItemPointer tid,
 	}
 	else
 	{
-		result = heap_delete(relation, tid, cid, crosscheck,
+		Oid delta_oid;
+		Relation delta_rel;
+
+		delta_oid = gamma_meta_get_delta_table_rel(relation);
+		delta_rel = table_open(delta_oid, AccessShareLock);
+		result = heap_delete(delta_rel, tid, cid, crosscheck,
 											wait, tmfd, changingPart);
+		table_close(delta_rel, NoLock);
 	}
 	
 	return result;
@@ -110,9 +116,14 @@ void
 ctable_vacuum_rel(Relation rel, VacuumParams * params,
 		BufferAccessStrategy bstrategy)
 {
+	Oid delta_oid;
+	Relation delta_rel;
 	BlockNumber nblocks;
 
-	heap_vacuum_rel(rel, params, bstrategy);
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, ShareUpdateExclusiveLock);
+	heap_vacuum_rel(delta_rel, params, bstrategy);
+	table_close(delta_rel, NoLock);
 
 	/* the delta table need to truncate or clean */
 	nblocks = RelationGetNumberOfBlocks(rel);

@@ -44,9 +44,15 @@ extern int gammadb_delta_table_nblocks;
 
 extern ObjectAddress gamma_meta_create_sequence(Relation baserel);
 extern bool gamma_meta_cv_table(Relation rel, Datum reloptions);
+extern bool gamma_meta_delta_table(Relation rel, Datum reloptions);
+
 extern void gamma_meta_truncate_cvtable(Oid cvrelid);
 extern Oid gamma_meta_get_cv_table_rel(Relation baserel);
 extern Oid gamma_meta_get_cv_table_oid(Oid base_rel_oid);
+
+extern Oid gamma_meta_get_delta_table_rel(Relation baserel);
+extern Oid gamma_meta_get_delta_table_oid(Oid base_rel_oid);
+
 extern uint32 gamma_meta_next_rgid(Relation rel);
 extern uint32 gamma_meta_max_rgid(Relation rel);
 extern Oid gamma_meta_rgid_sequence_oid(Relation rel);

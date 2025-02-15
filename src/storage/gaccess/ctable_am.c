@@ -416,9 +416,14 @@ ctable_parallelscan_reinitialize(Relation rel, ParallelTableScanDesc pscan)
 static IndexFetchTableData *
 ctable_index_fetch_begin(Relation rel)
 {
+	Oid delta_oid = gamma_meta_get_delta_table_rel(rel);
+	Relation delta_rel = table_open(delta_oid, AccessShareLock);
 	CIndexFetchCTableData *scan = palloc0(sizeof(CIndexFetchCTableData));
+	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
 	scan->base.xs_base.rel = rel;
 	scan->base.xs_cbuf = InvalidBuffer;
+
+	scan->delta_scan = (IndexFetchHeapData *)heapam_routine->index_fetch_begin(delta_rel);
 
 	scan->heapslot = MakeSingleTupleTableSlot(RelationGetDescr(rel),
 												&TTSOpsBufferHeapTuple);
@@ -438,11 +443,20 @@ ctable_index_fetch_end(IndexFetchTableData * sscan)
 {
 	CIndexFetchCTableData *scan = (CIndexFetchCTableData *)sscan;
 	IndexFetchHeapData *hscan = (IndexFetchHeapData *) sscan;
+	IndexFetchTableData *delta_scan = (IndexFetchTableData *)scan->delta_scan;
+	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
 
 	if (BufferIsValid(hscan->xs_cbuf))
 	{
 		ReleaseBuffer(hscan->xs_cbuf);
 		hscan->xs_cbuf = InvalidBuffer;
+	}
+
+	/* close the delta table */
+	if (scan->delta_scan != NULL)
+	{
+		table_close(scan->delta_scan->xs_base.rel, NoLock);
+		heapam_routine->index_fetch_end(delta_scan);
 	}
 
 	ExecDropSingleTupleTableSlot(scan->heapslot);
@@ -460,7 +474,6 @@ ctable_index_fetch_tuple(struct IndexFetchTableData * sscan,
 {
 	CIndexFetchCTableData *scan = (CIndexFetchCTableData *) sscan;
 	Relation rel = scan->base.xs_base.rel;
-	//uint32 rgid = gamma_meta_ptid_get_rgid(tid);
 	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
 	bool found = false;
 
@@ -469,8 +482,9 @@ ctable_index_fetch_tuple(struct IndexFetchTableData * sscan,
 	/* the tuple is in delta table */
 	if (!gamma_meta_tid_is_columnar(tid))
 	{
+		IndexFetchTableData *delta_scan = (IndexFetchTableData *)scan->delta_scan;
 		ExecClearTuple(scan->heapslot);
-		found = heapam_routine->index_fetch_tuple(sscan, tid, snapshot,
+		found = heapam_routine->index_fetch_tuple(delta_scan, tid, snapshot,
 										scan->heapslot, call_again, all_dead);
 
 		if (found)
@@ -514,6 +528,11 @@ ctable_fetch_row_version(Relation relation,
 		TupleTableSlot *tempslot;
 		BufferHeapTupleTableSlot *btempslot;
 		Buffer		buffer;
+		Oid delta_oid;
+		Relation delta_rel;
+
+		delta_oid = gamma_meta_get_delta_table_rel(relation);
+		delta_rel = table_open(delta_oid, AccessShareLock);
 
 		ExecClearTuple(slot);
 		tempslot = MakeSingleTupleTableSlot(slot->tts_tupleDescriptor,
@@ -528,9 +547,11 @@ ctable_fetch_row_version(Relation relation,
 			slot->tts_tableOid = RelationGetRelid(relation);
 
 			ExecDropSingleTupleTableSlot(tempslot);
+			table_close(delta_rel, NoLock);
 			return true;
 		}
 
+		table_close(delta_rel, NoLock);
 		ExecDropSingleTupleTableSlot(tempslot);
 		return false;
 	}
@@ -575,7 +596,13 @@ ctable_tuple_insert(Relation rel, TupleTableSlot * slot, CommandId cid,
 		int options, struct BulkInsertStateData * bistate)
 {
 	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
-	heapam_routine->tuple_insert(rel, slot, cid, options, bistate);
+	Oid delta_oid;
+	Relation delta_rel;
+
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, AccessShareLock);
+	heapam_routine->tuple_insert(delta_rel, slot, cid, options, bistate);
+	table_close(delta_rel, NoLock);
 	return;
 }
 
@@ -586,8 +613,14 @@ ctable_tuple_insert_speculative(Relation rel, TupleTableSlot * slot,
 		uint32 specToken)
 {
 	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
+	Oid delta_oid;
+	Relation delta_rel;
+
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, AccessShareLock);
 	heapam_routine->tuple_insert_speculative(rel, slot, cid, options,
 													bistate, specToken);
+	table_close(delta_rel, NoLock);
 	return;
 }
 
@@ -597,7 +630,13 @@ ctable_tuple_complete_speculative(Relation rel, TupleTableSlot * slot,
 		uint32 specToken, bool succeeded)
 {
 	const TableAmRoutine *heapam_routine = GetHeapamTableAmRoutine();
+	Oid delta_oid;
+	Relation delta_rel;
+
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, AccessShareLock);
 	heapam_routine->tuple_complete_speculative(rel, slot, specToken, succeeded);
+	table_close(delta_rel, NoLock);
 }
 
 static void
@@ -612,7 +651,13 @@ ctable_multi_insert(Relation rel, TupleTableSlot ** slots, int ntuples,
 	}
 	else
 	{
+		Oid delta_oid;
+		Relation delta_rel;
+
+		delta_oid = gamma_meta_get_delta_table_rel(rel);
+		delta_rel = table_open(delta_oid, AccessShareLock);
 		heapam_routine->multi_insert(rel, slots, ntuples, cid, options, bistate);
+		table_close(delta_rel, NoLock);
 	}
 	return;
 }
@@ -717,7 +762,10 @@ ctable_set_new_filenode(Relation rel,
 		gamma_buffer_invalid_rel(RelationGetRelid(rel)); /* Oid of base rel*/
 	}
 	else
+	{
+		gamma_meta_delta_table(rel, (Datum)0);
 		gamma_meta_cv_table(rel, (Datum)0);
+	}
 }
 
 static void
@@ -769,7 +817,10 @@ ctable_set_new_filelocator(Relation rel,
 		gamma_buffer_invalid_rel(RelationGetRelid(rel)); /* Oid of base rel */
 	}
 	else
+	{
+		gamma_meta_delta_table(rel, (Datum)0);
 		gamma_meta_cv_table(rel, (Datum)0);
+	}
 }
 
 static void
@@ -835,6 +886,9 @@ ctable_nontransactional_truncate(Relation rel)
 	Oid	toastrelid;
 	Oid cvrelid;
 
+	Oid delta_oid;
+	Relation delta_rel;
+
 	if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
 		return;
 
@@ -853,12 +907,19 @@ ctable_nontransactional_truncate(Relation rel)
 		table_close(toastrel, NoLock);
 	}
 
+	/* truncate cv table */
 	cvrelid = gamma_meta_get_cv_table_rel(rel);
 	if (OidIsValid(cvrelid))
 	{
 		gamma_meta_truncate_cvtable(cvrelid);
 		gamma_buffer_invalid_rel(RelationGetRelid(rel)); /* Oid of base rel */
 	}
+
+	/* truncate delta table */
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, AccessShareLock);
+	table_relation_nontransactional_truncate(delta_rel);
+	table_close(delta_rel, NoLock);
 }
 
 static void
@@ -1090,8 +1151,26 @@ ctable_relation_needs_toast_table(Relation rel)
 static uint64 
 ctable_relation_size(Relation rel, ForkNumber forkNumber)
 {
-	uint64 size = table_block_relation_size(rel, forkNumber);
-	return size;
+	int all_width = 0;
+	BlockNumber pages;
+
+	Oid cv_rel_oid = gamma_meta_get_cv_table_rel(rel);
+	Relation cv_rel = table_open(cv_rel_oid, AccessShareLock);
+
+	Oid delta_oid = gamma_meta_get_delta_table_rel(rel);
+	Relation delta_rel = table_open(delta_oid, AccessShareLock);
+
+	uint64 rows = cvtable_get_rows(cv_rel);
+	pages = table_relation_size(delta_rel, MAIN_FORKNUM);
+
+	all_width = get_rel_data_width(delta_rel, NULL);
+
+	/* treat Column Vector as a page */
+	pages += (rows * (all_width + sizeof(HeapTupleHeaderData)) / BLCKSZ);
+
+	table_close(cv_rel, AccessShareLock);
+	table_close(delta_rel, AccessShareLock);
+	return pages;
 }
 
 static void
@@ -1099,12 +1178,19 @@ ctable_estimate_rel_size(Relation rel, int32 * attr_widths,
 		BlockNumber * pages, double *tuples,
 		double * allvisfrac)
 {
+	Oid delta_oid;
+	Relation delta_rel;
 	int all_width = 0;
+	uint64 rows;
 
 	Oid cv_rel_oid = gamma_meta_get_cv_table_rel(rel);
 	Relation cv_rel = table_open(cv_rel_oid, AccessShareLock);
-	uint64 rows = cvtable_get_rows(cv_rel);
-	table_block_relation_estimate_size(rel, attr_widths, pages, tuples,
+
+	delta_oid = gamma_meta_get_delta_table_rel(rel);
+	delta_rel = table_open(delta_oid, AccessShareLock);
+
+	rows = cvtable_get_rows(cv_rel);
+	table_block_relation_estimate_size(delta_rel, attr_widths, pages, tuples,
 										allvisfrac, 0, 0);
 
 	all_width = get_rel_data_width(rel, attr_widths);
@@ -1117,6 +1203,7 @@ ctable_estimate_rel_size(Relation rel, int32 * attr_widths,
 	*pages += (rows * (all_width + sizeof(HeapTupleHeaderData)) / BLCKSZ);
 	*tuples += rows;
 
+	table_close(delta_rel, AccessShareLock);
 	table_close(cv_rel, AccessShareLock);
 }
 

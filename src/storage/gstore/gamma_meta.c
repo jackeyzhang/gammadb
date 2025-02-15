@@ -51,6 +51,7 @@
 #include "utils/utils.h"
 
 #define GAMMA_META_CV_TABLE_NAME "gammadb_cv_table_%u"
+#define GAMMA_META_DELTA_TABLE_NAME "gammadb_delta_table_%u"
 #define GAMMA_META_CV_INDEX_NAME "gammadb_cv_index_%u"
 #define GAMMA_META_CV_SEQ_NAME "gammadb_cv_seq_%u"
 
@@ -61,6 +62,117 @@
 int gammadb_delta_table_nblocks = 134217728;
 int gammadb_cv_compress_method = GAMMA_CV_COMPRESS_PGLZ;
 
+bool
+gamma_meta_delta_table(Relation rel, Datum reloptions)
+{
+	Oid base_rel_oid = RelationGetRelid(rel);
+	List *attrList = NULL;
+	int attnum;
+	TupleDesc basedesc = RelationGetDescr(rel);
+	char heap_table_name[NAMEDATALEN];
+
+	CreateStmt *create = NULL;
+	ObjectAddress intoRelationAddr;
+	RangeVar *heap_rv = NULL;
+
+	sprintf(heap_table_name, GAMMA_META_DELTA_TABLE_NAME, base_rel_oid);
+
+	for (attnum = 0; attnum < basedesc->natts; attnum++)
+	{
+		Form_pg_attribute attribute = TupleDescAttr(basedesc, attnum);
+		ColumnDef  *col;
+		char	   *colname;
+
+		colname = NameStr(attribute->attname);
+		col = makeColumnDef(colname,
+							attribute->atttypid,
+							attribute->atttypmod,
+							attribute->attcollation);
+
+		if (!OidIsValid(col->collOid) &&
+			type_is_collatable(col->typeName->typeOid))
+			ereport(ERROR,
+					(errcode(ERRCODE_INDETERMINATE_COLLATION),
+					 errmsg("no collation was derived for column \"%s\" with collatable type %s",
+							col->colname,
+							format_type_be(col->typeName->typeOid)),
+					 errhint("Use the COLLATE clause to set the collation explicitly.")));
+
+		attrList = lappend(attrList, col);
+	}
+
+	heap_rv = makeNode(RangeVar);
+	heap_rv->schemaname = GAMMA_NAMESPACE;
+	heap_rv->relname = heap_table_name;
+	heap_rv->relpersistence = RELPERSISTENCE_PERMANENT;
+
+	create = makeNode(CreateStmt);
+	create->relation = heap_rv;
+	create->tableElts = attrList;
+	create->inhRelations = NIL;
+	create->ofTypename = NULL;
+	create->constraints = NIL;
+	create->options = NULL;
+	create->oncommit = ONCOMMIT_NOOP;
+	create->tablespacename = get_namespace_name(rel->rd_rel->reltablespace);
+	create->if_not_exists = false;
+	create->accessMethod = "heap";
+
+	intoRelationAddr = DefineRelation(create, RELKIND_RELATION, InvalidOid, NULL, NULL);
+
+	/* 
+	 * Register depencency from the columnar heap table to the base table,
+	 * so that the heap table will be dropped if the base table is
+	 */
+	if (!IsBootstrapProcessingMode()) {
+		ObjectAddress baseobject, deltaobject;
+		baseobject.classId = RelationRelationId;
+		baseobject.objectId = base_rel_oid;
+		baseobject.objectSubId = 0;
+		deltaobject.classId = RelationRelationId;
+		deltaobject.objectId = intoRelationAddr.objectId;
+		deltaobject.objectSubId = 0;
+
+		recordDependencyOn(&deltaobject, &baseobject, DEPENDENCY_INTERNAL);
+	}
+
+	CommandCounterIncrement();
+
+	NewRelationCreateToastTable(intoRelationAddr.objectId, reloptions);
+
+	return true;
+}
+
+Oid
+gamma_meta_get_delta_table_rel(Relation baserel)
+{
+	Oid base_rel_oid = RelationGetRelid(baserel);
+	return gamma_meta_get_delta_table_oid(base_rel_oid);
+}
+
+Oid
+gamma_meta_get_delta_table_oid(Oid base_rel_oid)
+{
+	Oid delta_rel_oid = InvalidOid;
+	char delta_table_name[NAMEDATALEN];
+	Relation delta_rel;
+	RangeVar *rv = makeNode(RangeVar);
+
+	sprintf(delta_table_name, GAMMA_META_DELTA_TABLE_NAME, base_rel_oid);
+	rv->schemaname = GAMMA_NAMESPACE;
+	rv->relname = (char *)delta_table_name;
+
+	delta_rel = relation_openrv_extended(rv, RowExclusiveLock, true);
+	if (delta_rel == NULL)
+		return InvalidOid;
+
+	delta_rel_oid = RelationGetRelid(delta_rel);
+	relation_close(delta_rel, RowExclusiveLock);
+
+	pfree(rv);
+
+	return delta_rel_oid;
+}
 
 bool
 gamma_meta_cv_table(Relation rel, Datum reloptions)
