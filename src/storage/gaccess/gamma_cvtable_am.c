@@ -63,6 +63,9 @@ cvtable_beginscan(Relation rel, Snapshot snapshot, int nkeys,
 	cvscan->cv_slot = MakeTupleTableSlot(RelationGetDescr(cvscan->cv_rel),
 												 &TTSOpsBufferHeapTuple);
 
+	cvscan->rg_context = AllocSetContextCreate(CurrentMemoryContext,
+											"row group reset memory context",
+											ALLOCSET_DEFAULT_SIZES); 
 	cvscan->rg = gamma_rg_build(rel);
 	cvscan->offset = 0;
 
@@ -281,13 +284,25 @@ cvtable_load_rg(CVScanDesc cvscan, uint32 rgid)
 	int i = 0;
 	bool first = true;
 	int dim_attno = 0;
+	MemoryContext old_context = NULL;
 	TupleDesc base_desc = RelationGetDescr(cvscan->base_rel);
+
+	if (cvscan->rg_context != NULL)
+	{
+		MemoryContextResetOnly(cvscan->rg_context);
+		old_context = MemoryContextSwitchTo(cvscan->rg_context);
+	}
 
 	/* precheck scankeys */
 	if (cvscan->sk_count > 0)
 	{
 		if (!gamma_sk_run_scankeys(cvscan, rgid))
+		{
+			if (old_context != NULL)
+				MemoryContextSwitchTo(old_context);
+
 			return false;
+		}
 	}
 
 	if (cvscan->bms_proj)
@@ -302,7 +317,12 @@ cvtable_load_rg(CVScanDesc cvscan, uint32 rgid)
 				continue;
 
 			if (!cvtable_load_cv(cvscan, rgid, attno))
+			{
+				if (old_context != NULL)
+					MemoryContextSwitchTo(old_context);
+
 				return false;
+			}
 
 			if (first)
 			{
@@ -320,7 +340,12 @@ cvtable_load_rg(CVScanDesc cvscan, uint32 rgid)
 				continue;
 
 			if (!cvtable_load_cv(cvscan, rgid, i + 1))
+			{
+				if (old_context != NULL)
+					MemoryContextSwitchTo(old_context);
+
 				return false;
+			}
 
 			if (first)
 			{
@@ -333,6 +358,9 @@ cvtable_load_rg(CVScanDesc cvscan, uint32 rgid)
 	/* the dim of Row Group */
 	cvscan->rg->dim = cvscan->rg->cvs[dim_attno].dim;
 	cvscan->rg->rgid = rgid;
+
+	if (old_context != NULL)
+		MemoryContextSwitchTo(old_context);
 
 	return true;
 }

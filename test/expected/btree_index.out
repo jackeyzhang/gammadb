@@ -50,13 +50,12 @@ CREATE INDEX bt_f8_index ON bt_f8_heap USING btree (seqno float8_ops);
 explain (costs off) SELECT b.*
    FROM bt_i4_heap b
    WHERE b.seqno < 1;
-                       QUERY PLAN                       
---------------------------------------------------------
- Custom Scan (gamma_vec_devector)
-   ->  Custom Scan (gamma_vec_tablescan)
-         ->  Seq Scan on bt_i4_heap b
-               Filter: (seqno OPERATOR(pg_catalog.<) 1)
-(4 rows)
+                     QUERY PLAN                     
+----------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_i4_index on bt_i4_heap b
+         Index Cond: (seqno < 1)
+(3 rows)
 
 SELECT b.*
    FROM bt_i4_heap b
@@ -69,13 +68,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_i4_heap b
    WHERE b.seqno >= 9999;
-                         QUERY PLAN                         
-------------------------------------------------------------
- Custom Scan (gamma_vec_devector)
-   ->  Custom Scan (gamma_vec_tablescan)
-         ->  Seq Scan on bt_i4_heap b
-               Filter: (seqno OPERATOR(pg_catalog.>=) 9999)
-(4 rows)
+                     QUERY PLAN                     
+----------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_i4_index on bt_i4_heap b
+         Index Cond: (seqno >= 9999)
+(3 rows)
 
 SELECT b.*
    FROM bt_i4_heap b
@@ -106,11 +104,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_name_heap b
    WHERE b.seqno < '1'::name;
-          QUERY PLAN           
--------------------------------
- Seq Scan on bt_name_heap b
-   Filter: (seqno < '1'::name)
-(2 rows)
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_name_index on bt_name_heap b
+         Index Cond: (seqno < '1'::name)
+(3 rows)
 
 SELECT b.*
    FROM bt_name_heap b
@@ -123,11 +122,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_name_heap b
    WHERE b.seqno >= '9999'::name;
-            QUERY PLAN             
------------------------------------
- Seq Scan on bt_name_heap b
-   Filter: (seqno >= '9999'::name)
-(2 rows)
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_name_index on bt_name_heap b
+         Index Cond: (seqno >= '9999'::name)
+(3 rows)
 
 SELECT b.*
    FROM bt_name_heap b
@@ -158,11 +158,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_txt_heap b
    WHERE b.seqno < '1'::text;
-          QUERY PLAN           
--------------------------------
- Seq Scan on bt_txt_heap b
-   Filter: (seqno < '1'::text)
-(2 rows)
+                      QUERY PLAN                      
+------------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_txt_index on bt_txt_heap b
+         Index Cond: (seqno < '1'::text)
+(3 rows)
 
 SELECT b.*
    FROM bt_txt_heap b
@@ -175,11 +176,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_txt_heap b
    WHERE b.seqno >= '9999'::text;
-            QUERY PLAN             
------------------------------------
- Seq Scan on bt_txt_heap b
-   Filter: (seqno >= '9999'::text)
-(2 rows)
+                      QUERY PLAN                      
+------------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_txt_index on bt_txt_heap b
+         Index Cond: (seqno >= '9999'::text)
+(3 rows)
 
 SELECT b.*
    FROM bt_txt_heap b
@@ -210,13 +212,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_f8_heap b
    WHERE b.seqno < '1'::float8;
-                                 QUERY PLAN                                 
-----------------------------------------------------------------------------
- Custom Scan (gamma_vec_devector)
-   ->  Custom Scan (gamma_vec_tablescan)
-         ->  Seq Scan on bt_f8_heap b
-               Filter: (seqno OPERATOR(pg_catalog.<) '1'::double precision)
-(4 rows)
+                     QUERY PLAN                      
+-----------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_f8_index on bt_f8_heap b
+         Index Cond: (seqno < '1'::double precision)
+(3 rows)
 
 SELECT b.*
    FROM bt_f8_heap b
@@ -229,13 +230,12 @@ SELECT b.*
 explain (costs off) SELECT b.*
    FROM bt_f8_heap b
    WHERE b.seqno >= '9999'::float8;
-                                   QUERY PLAN                                   
---------------------------------------------------------------------------------
- Custom Scan (gamma_vec_devector)
-   ->  Custom Scan (gamma_vec_tablescan)
-         ->  Seq Scan on bt_f8_heap b
-               Filter: (seqno OPERATOR(pg_catalog.>=) '9999'::double precision)
-(4 rows)
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Custom Scan (gamma_indexscan)
+   ->  Index Scan using bt_f8_index on bt_f8_heap b
+         Index Cond: (seqno >= '9999'::double precision)
+(3 rows)
 
 SELECT b.*
    FROM bt_f8_heap b

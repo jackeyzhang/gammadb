@@ -17,6 +17,9 @@ REGRESS_OPTS = --inputdir=test --outputdir=test --temp-config ./regress.conf
 #src
 OBJS += src/gamma.o
 
+#src/commands
+OBJS += src/commands/gamma_vacuum.o
+
 #src/executor
 OBJS += src/executor/gamma_vec_tablescan.o src/executor/gamma_devectorize.o \
 		src/executor/vector_tuple_slot.o src/executor/vec_exec_scan.o \

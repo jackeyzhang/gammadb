@@ -218,7 +218,7 @@ gamma_toc_alloc(gamma_toc *toc, Size nbytes)
 			remain_bytes + nbytes < remain_bytes)
 		{
 			result = gamma_toc_invalid((gamma_toc *)vtoc, nbytes);
-			if (result != NULL)
+			if (result == NULL)
 				break;
 				
 			if (gamma_toc_merge((gamma_toc *)vtoc, nbytes))
