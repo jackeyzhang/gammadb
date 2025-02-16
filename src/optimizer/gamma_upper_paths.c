@@ -388,6 +388,70 @@ gamma_vec_order_paths(PlannerInfo *root,
 	return;
 }
 
+static List *
+gamma_order_qual_clauses(PlannerInfo *root, List *clauses)
+{
+	typedef struct
+	{
+		Node	   *clause;
+		Selectivity sel;
+	} QualItem;
+	int nitems = list_length(clauses);
+	QualItem *items;
+	ListCell *lc;
+	int i;
+	List *result;
+
+	/* No need to work hard for 0 or 1 clause */
+	if (nitems <= 1)
+		return clauses;
+
+	items = (QualItem *) palloc(nitems * sizeof(QualItem));
+	i = 0;
+	foreach(lc, clauses)
+	{
+		Node	   *clause = (Node *) lfirst(lc);
+
+		items[i].clause = clause;
+		if (IsA(clause, RestrictInfo))
+		{
+			RestrictInfo *rinfo = (RestrictInfo *) clause;
+			items[i].sel = rinfo->norm_selec;
+		}
+		else
+			items[i].sel = 0.0;
+		i++;
+	}
+
+	/*
+	 * Sort.  We don't use qsort() because it's not guaranteed stable for
+	 * equal keys.  The expected number of entries is small enough that a
+	 * simple insertion sort should be good enough.
+	 */
+	for (i = 1; i < nitems; i++)
+	{
+		QualItem	newitem = items[i];
+		int			j;
+
+		/* insert newitem into the already-sorted subarray */
+		for (j = i; j > 0; j--)
+		{
+			QualItem   *olditem = &items[j - 1];
+
+			if (newitem.sel >= olditem->sel)
+				break;
+			items[j] = *olditem;
+		}
+		items[j] = newitem;
+	}
+
+	/* Convert back to a list */
+	result = NIL;
+	for (i = 0; i < nitems; i++)
+		result = lappend(result, items[i].clause);
+
+	return result;
+}
 
 static void
 gamma_vec_upper_paths(PlannerInfo *root,
@@ -416,6 +480,31 @@ gamma_vec_upper_paths(PlannerInfo *root,
 		gamma_process_top_node(root, group_rel);
 	}
 #endif
+
+	/*
+	 * When create_scan_plan, the quals will be sorted according to the cost.
+	 * However, because the costs of quals are all default costs, the costs
+	 * of most quals are the same, so the order will not change much.
+	 * We add a sorting based on selectivity here, which will rank the qual
+	 * with low selectivity to the front. Even if we sort based on cost later,
+	 * under the same cost, the qual with low selectivity will be ranked first.
+	 */
+	{
+		int i;
+		RelOptInfo *qual_rel = NULL;
+		for (i = 0; i < root->simple_rel_array_size; i++)
+		{
+			if (root->simple_rel_array[i] == NULL)
+				continue;
+
+			qual_rel = root->simple_rel_array[i];
+			if (qual_rel->baserestrictinfo == NULL)
+				continue;
+
+			qual_rel->baserestrictinfo = 
+				gamma_order_qual_clauses(root, qual_rel->baserestrictinfo);
+		}
+	}
 
 	return;
 }
