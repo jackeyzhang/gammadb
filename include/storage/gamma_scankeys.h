@@ -26,4 +26,6 @@ extern bool gamma_sk_run_scankeys(CVScanDesc cvscan, uint32 rgid);
 extern bool gamma_sk_attr_check(CVScanDesc cvscan, AttrNumber attno,
 									char *min, char *max);
 
+extern uint32 gamma_skip_run_scankeys(CVScanDesc cvscan, RowGroup *rg, uint32 offset);
+
 #endif /* GAMMA_SCANKEYS_H */
